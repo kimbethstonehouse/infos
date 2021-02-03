@@ -68,7 +68,7 @@ void Kernel::start(BottomFn bottom)
 	
 	initialise_tod();
 	
-	_kernel_process = new Process(Core::get_current_core()->get_scheduler(), "kernel", true, (Thread::thread_proc_t) &start_kernel_threadproc_tramp);
+	_kernel_process = new Process("kernel", true, (Thread::thread_proc_t) &start_kernel_threadproc_tramp);
 	
 	_kernel_process->main_thread().add_entry_argument((void *) this);
 	_kernel_process->main_thread().add_entry_argument((void *)bottom);

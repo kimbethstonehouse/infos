@@ -19,6 +19,7 @@
 
 using namespace infos::kernel;
 using namespace infos::util;
+using namespace infos::drivers::irq;
 
 #define KERNEL_STACK_ORDER		1
 #define KERNEL_STACK_SIZE		((1 << KERNEL_STACK_ORDER) * __page_size)
@@ -86,7 +87,7 @@ void Thread::add_entry_argument(void* arg)
 void Thread::start()
 {
 	// Set the state of this thread to be runnable.
-	_owner.get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
+	Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
 }
 
 /**
@@ -95,9 +96,10 @@ void Thread::start()
 void Thread::stop()
 {
 	// Set the state of this thread to be stopped.
-    _owner.get_scheduler().set_entity_state(*this, SchedulingEntityState::STOPPED);
-	
-	// If this thread is currently running, then we must yield so that
+    Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::STOPPED);
+
+
+    // If this thread is currently running, then we must yield so that
 	// execution doesn't return into it.
 	if (&Thread::current() == this) {
 		sys.arch().invoke_kernel_syscall(1);
@@ -106,16 +108,18 @@ void Thread::stop()
 
 void Thread::sleep()
 {
-    _owner.get_scheduler().set_entity_state(*this, SchedulingEntityState::SLEEPING);
-	
-	if (&Thread::current() == this) {
+    Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::SLEEPING);
+
+
+    if (&Thread::current() == this) {
 		sys.arch().invoke_kernel_syscall(1);
 	}
 }
 
 void Thread::wake_up()
 {
-    _owner.get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
+    Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
+
 }
 
 /**

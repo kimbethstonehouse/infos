@@ -110,7 +110,7 @@ Process* ElfLoader::load(const String& cmdline)
 		return NULL;
 	}
 	
-	Process *np = new Process(Core::get_current_core()->get_scheduler(), "unknown", false, (Thread::thread_proc_t)hdr.entry_point);
+	Process *np = new Process("unknown", false, (Thread::thread_proc_t)hdr.entry_point);
 	for (unsigned int i = 0; i < hdr.phnum; i++) {
 		ELF64ProgramHeaderEntry ent;
 		
