@@ -54,7 +54,7 @@ bool Scheduler::init()
 	sched_log.message(LogLevel::INFO, "Creating idle process");
     // todo: something goes amiss here sometimes, and the bsp stops doing what it's supposed to be doing
     // perhaps the bsp accidentally stats running idle task?
-	Process *idle_process = new Process(*this, "idle", true, (Thread::thread_proc_t)idle_task);
+	Process *idle_process = new Process("idle", true, (Thread::thread_proc_t)idle_task);
 
     sched_log.message(LogLevel::INFO, "Idle process created");
 
