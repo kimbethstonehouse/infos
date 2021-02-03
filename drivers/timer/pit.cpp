@@ -69,3 +69,13 @@ void PIT::init_periodic(uint64_t period)
 {
 
 }
+
+void PIT::spin(uint64_t nanoseconds)
+{
+    uint64_t period = (frequency() * nanoseconds) / 1000000000ull;
+    init_oneshot(period);
+
+    start();
+    while (!expired()) asm volatile("nop");
+    stop();
+}

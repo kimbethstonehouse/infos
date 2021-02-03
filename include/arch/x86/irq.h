@@ -4,6 +4,7 @@
 
 #include <infos/define.h>
 #include <infos/kernel/irq.h>
+#include <infos/util/lock.h>
 
 #define MAX_IRQS 256
 
@@ -58,14 +59,14 @@ namespace infos
 				bool attach_irq(kernel::IRQ *irq);
 								
 				const IRQDescriptor *get_irq_descriptor(uint8_t nr) const { return &irq_descriptors[nr]; }
-				
-			private:
-				IRQDescriptor irq_descriptors[MAX_IRQS];
-				
+
+            private:
+                IRQDescriptor irq_descriptors[MAX_IRQS];
+
 				template<typename T>
 				bool install_handler(uint8_t nr, kernel::IRQ::irq_handler_t handler, void *priv);
 			};
-			
+
 			static inline uint64_t __save_flags()
 			{
 				uint64_t flags;

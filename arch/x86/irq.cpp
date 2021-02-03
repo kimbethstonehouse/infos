@@ -18,6 +18,7 @@
 using namespace infos::arch;
 using namespace infos::arch::x86;
 using namespace infos::kernel;
+using namespace infos::util;
 
 // An array containing pointers to the IRQ entry-point functions
 static irq_entry_point_t irq_entry_points[] = {
@@ -81,31 +82,33 @@ static irq_entry_point_t irq_entry_points[] = {
  */
 bool IRQManager::init()
 {
-	// Initialise all IDT entries to their corresponding entry points
+    // Initialise all IDT entries to their corresponding entry points
 	for (unsigned int i = 0; i < MAX_NR_IDT_ENTRIES && i < MAX_IRQS; i++) {
 		idt.register_interrupt_gate(i, (uintptr_t)irq_entry_points[i], 0x08, 0);
 	}
-	
-	// Allow TRAP + USER_SYSCALL from userspace, by modifiying the IDT
+
+    // Allow TRAP + USER_SYSCALL from userspace, by modifiying the IDT
 	// entry to permit invocation from ring 3.
 	idt.register_interrupt_gate(IRQ_TRAP, (uintptr_t)irq_entry_points[IRQ_TRAP], 0x08, 3);
 	idt.register_interrupt_gate(IRQ_USER_SYSCALL, (uintptr_t)irq_entry_points[IRQ_USER_SYSCALL], 0x08, 3);
-	
-	// Reload the IDT
+
+    // Reload the IDT
 	idt.reload();
 	
 	// Now, each logical IRQ vector has an associated "handler" object, depending on what
 	// type of IRQ that particular vector is.  When the IRQ vector is invoked (by whatever)
 	// the associated IRQ descriptor is looked up, and that contains the associated
 	// handler object, that knows how to dispatch the behaviour.
-	
+
 	// The first 32 IRQs are actually exception vectors, so initialise the IRQ handler with an
 	// ExceptionIRQ handler object.
-	for (unsigned int i = 0; i < 32; i++) {
+
+    for (unsigned int i = 0; i < 32; i++) {
 		// Create the ExceptionIRQ handler object
-		IRQ *irq = new ExceptionIRQ();
-		
-		// Associate the object with the IRQ descriptor, and assign the number.
+
+        IRQ *irq = new ExceptionIRQ();
+
+        // Associate the object with the IRQ descriptor, and assign the number.
 		irq_descriptors[i].irq(irq);
 		irq->assign(i);
 	}
@@ -178,15 +181,13 @@ bool IRQManager::attach_irq(kernel::IRQ* irq)
 	// finding a descriptor that doesn't have an associated IRQ object.
 	for (unsigned int i = 0x20; i < 0x100; i++) {
 		if (irq_descriptors[i].irq() == NULL) {
-			// If one is found, connect the IRQ object to the descriptor,
-			// and assign its number.
-			irq_descriptors[i].irq(irq);
-			irq->assign(i);
+            // Connect the IRQ object to the descriptor, and assign its number.
+            irq_descriptors[i].irq(irq);
+            irq->assign(i);
+            return true;
+        }
+    }
 
-			return true;
-		}
-	}
-	
 	return false;
 }
 
@@ -224,7 +225,7 @@ void ExceptionIRQ::disable()
 void SoftwareIRQ::handle() const
 {
 	// Invoke the handler function, but if it failed to invoke, halt the system.
-	if (!invoke()) {
+    if (!invoke()) {
 		x86_log.messagef(LogLevel::FATAL, "Unhandled Software IRQ %u", nr());
 		arch_abort();
 	}

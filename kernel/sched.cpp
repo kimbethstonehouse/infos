@@ -52,9 +52,14 @@ static void idle_task()
 bool Scheduler::init()
 {
 	sched_log.message(LogLevel::INFO, "Creating idle process");
+    // todo: something goes amiss here sometimes, and the bsp stops doing what it's supposed to be doing
+    // perhaps the bsp accidentally stats running idle task?
+	Process *idle_process = new Process(*this, "idle", true, (Thread::thread_proc_t)idle_task);
 
-	Process *idle_process = new Process("idle", true, (Thread::thread_proc_t)idle_task);
-	_idle_entity = &idle_process->main_thread();
+    sched_log.message(LogLevel::INFO, "Idle process created");
+
+
+    _idle_entity = &idle_process->main_thread();
 	
 	SchedulingAlgorithm *algo = acquire_scheduler_algorithm();
 	if (!algo) {
@@ -67,7 +72,7 @@ bool Scheduler::init()
 	// Install the discovered algorithm.
 	_algorithm = algo;
 
-	// Start the idle process thread, and forcibly activate it.  This is so that
+    // Start the idle process thread, and forcibly activate it.  This is so that
 	// when interrupts are enabled, the idle thread becomes the context that is
 	// saved and restored.
 	idle_process->start();
@@ -198,26 +203,35 @@ void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState
 	entity._state_changed.trigger();
 }
 
+void Scheduler::set_current_thread(Thread &thread) { _current_thread = &thread; }
+
 extern char _SCHED_ALG_PTR_START, _SCHED_ALG_PTR_END;
 
-SchedulingAlgorithm* Scheduler::acquire_scheduler_algorithm()
+SchedulingAlgorithm *Scheduler::acquire_scheduler_algorithm()
 {
-	if (strlen(sched_algorithm) == 0) {
-		sched_log.messagef(LogLevel::ERROR, "Scheduling allocation algorithm not chosen on command-line");
-		return NULL;
-	}
-	
-	SchedulingAlgorithm *candidate = NULL;
-	SchedulingAlgorithm **schedulers = (SchedulingAlgorithm **)&_SCHED_ALG_PTR_START;
-	
-	sched_log.messagef(LogLevel::DEBUG, "Searching for '%s' algorithm...", sched_algorithm);
-	while (schedulers < (SchedulingAlgorithm **)&_SCHED_ALG_PTR_END) {
-		if (strncmp((*schedulers)->name(), sched_algorithm, sizeof(sched_algorithm)-1) == 0) {
-			candidate = *schedulers;
-		}
-		
-		schedulers++;
-	}
-		
-	return candidate;
+    if (strlen(sched_algorithm) == 0)
+    {
+        sched_log.messagef(LogLevel::ERROR, "Scheduling allocation algorithm not chosen on command-line");
+        return NULL;
+    }
+
+    SchedulingAlgorithmFactory *schedulers = (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_START;
+
+    sched_log.messagef(LogLevel::DEBUG, "Searching for '%s' algorithm...", sched_algorithm);
+    while (schedulers < (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_END)
+    {
+        SchedulingAlgorithm *candidate = (*schedulers)();
+
+        sched_log.messagef(LogLevel::DEBUG, "Found '%s' algorithm...", candidate->name());
+        if (strncmp(candidate->name(), sched_algorithm, sizeof(sched_algorithm) - 1) == 0)
+        {
+            return candidate;
+        }
+
+        delete candidate;
+
+        schedulers++;
+    }
+
+    return nullptr;
 }

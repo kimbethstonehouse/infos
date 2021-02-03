@@ -17,6 +17,8 @@
 #include <infos/util/generator.h>
 #include <infos/util/map.h>
 #include <infos/drivers/irq/core.h>
+#include <infos/drivers/timer/lapic-timer.h>
+#include <infos/util/lock.h>
 
 namespace infos {
 	namespace kernel {
@@ -26,7 +28,6 @@ namespace infos {
 
 			bool register_device(drivers::Device& device);
 			bool add_device_alias(const util::String& name, drivers::Device& device);
-            util::List<infos::drivers::irq::Core *> cores();
 
             template<class T>
 			bool try_get_device_by_class(const drivers::DeviceClass& device_class, T*& __out_device) const
@@ -54,9 +55,11 @@ namespace infos {
 			}
 			
 			const util::Map<util::String::hash_type, drivers::Device *>& devices() const { return _devices; }
+            util::List<infos::drivers::irq::Core *> cores();
 
 		private:
 			util::Map<util::String::hash_type, drivers::Device *> _devices;
+            util::Mutex _mtx;
 		};
 	}
 }

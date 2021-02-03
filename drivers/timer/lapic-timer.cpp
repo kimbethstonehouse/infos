@@ -11,6 +11,7 @@
 #include <infos/drivers/timer/lapic-timer.h>
 #include <infos/drivers/timer/pit.h>
 #include <infos/drivers/irq/lapic.h>
+#include <infos/drivers/irq/core.h>
 #include <infos/kernel/kernel.h>
 #include <infos/kernel/irq.h>
 #include <infos/kernel/log.h>
@@ -37,6 +38,10 @@ LAPICTimer::LAPICTimer() : _frequency(0)
 {
 }
 
+void LAPICTimer::set_lapic_ptr(drivers::irq::LAPIC *lapic) {
+    _lapic = lapic;
+}
+
 /**
  * Calibrate the LAPIC timer by measuring its tick rate with respect to a known tick rate.
  * @return Returns TRUE if the calibration suceeded, or FALSE otherwise.
@@ -51,9 +56,7 @@ bool LAPICTimer::calibrate()
 		lapic_timer_log.message(LogLevel::ERROR, "LAPIC requires the PIT");
 		return false;
 	}
-	
-	lapic_timer_log.message(LogLevel::DEBUG, "Calibrating...");
-	
+
 	// Some useful constants for the calibration
 	#define FACTOR					1000
 	#define PIT_FREQUENCY			(1193180)
@@ -63,7 +66,8 @@ bool LAPICTimer::calibrate()
 	lapic_timer_log.messagef(LogLevel::DEBUG, "calibration ticks=%d", (uint32_t)CALIBRATION_TICKS);
 	
 	// Initialise the LAPIC and the PIT for one-shot operation.
-	this->init_oneshot(0xffffffff);
+//    pit->lock();
+    this->init_oneshot(0xffffffff);
 	pit->init_oneshot(CALIBRATION_TICKS);		// 10ms
 	
 	// Start the PIT and the LAPIC
@@ -78,6 +82,7 @@ bool LAPICTimer::calibrate()
 
 	// Stop the PIT
 	pit->stop();
+//	pit->unlock();
 
 	// Calculate the number of ticks per period (accounting for the LAPIC division)
 	uint32_t ticks_per_period = (0xffffffff - count());
@@ -85,8 +90,8 @@ bool LAPICTimer::calibrate()
 	
 	lapic_timer_log.messagef(LogLevel::DEBUG, "ticks-per-period=%u", ticks_per_period);
 
-	// Determine the LAPIC base frequency
-	_frequency = (ticks_per_period * (FACTOR/CALIBRATION_PERIOD));
+    // Determine the LAPIC base frequency
+    _frequency = (ticks_per_period * (FACTOR/CALIBRATION_PERIOD));
 
 	lapic_timer_log.messagef(LogLevel::DEBUG, "frequency=%lu", _frequency);
 	
@@ -99,14 +104,11 @@ bool LAPICTimer::calibrate()
  * @return Returns TRUE if the LAPIC timer initialised successfully, FALSE otherwise.
  */
 bool LAPICTimer::init(kernel::DeviceManager& dm)
-{	
-	if (!dm.try_get_device_by_class(LAPIC::LAPICDeviceClass, _lapic))
-		return false;
-
+{
 	_irq = &_lapic->timer_irq();
-	_irq->attach(lapic_timer_irq_handler, this);
-	
-	// Initialise the timer controls
+    _irq->attach(lapic_timer_irq_handler, this);
+
+    // Initialise the timer controls
 	_lapic->set_timer_divide(3);	
 	_lapic->set_timer_initial_count(1);
 
@@ -179,6 +181,7 @@ uint64_t LAPICTimer::count() const
 bool LAPICTimer::expired() const
 {
 	// TODO: Implement
+//	return _lapic->get_timer_current_count() == 0;
 	return false;
 }
 
@@ -188,9 +191,15 @@ bool LAPICTimer::expired() const
  * @param priv IRQ specific data.  In this case, a pointer to the LAPIC timer device object.
  */
 void LAPICTimer::lapic_timer_irq_handler(const IRQ *irq, void* priv)
-{	
+{
 	// HACK HACK HACK -- this shouldn't be hard-coded in
-	sys.update_runtime(DurationCast<Nanoseconds>(Milliseconds(10)));		// Tell the kernel to update its internal runtime with +10mS
-	sys.scheduler().update_accounting();		// Tell the scheduler to update process accounting
-	sys.scheduler().schedule();					// Cause a scheduling event to occur
+	Scheduler& sched = Core::get_current_core()->get_scheduler();
+
+    // Only have the BSP update the system runtime
+    if (Core::get_current_core()->get_state() == irq::Core::core_state::BOOTSTRAP) {
+        sys.update_runtime(DurationCast<Nanoseconds>(Milliseconds(10)));		// Tell the kernel to update its internal runtime with +10mS
+    }
+
+	sched.update_accounting();		// Tell the scheduler to update process accounting
+	sched.schedule();					// Cause a scheduling event to occur
 }

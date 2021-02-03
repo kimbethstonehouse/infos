@@ -13,15 +13,18 @@
 #include <arch/x86/multiboot.h>
 #include <arch/x86/early-screen.h>
 #include <arch/x86/qemu-stream.h>
+#include <arch/x86/dt.h>
 #include <arch/x86/context.h>
 #include <arch/x86/acpi/acpi.h>
 #include <arch/x86/cpu.h>
 #include <arch/x86/msr.h>
+#include <arch/x86/cpuid.h>
 #include <infos/kernel/log.h>
 #include <infos/kernel/kernel.h>
 #include <infos/util/string.h>
 #include <infos/util/map.h>
 #include <infos/util/printf.h>
+#include <infos/drivers/timer/lapic-timer.h>
 
 using namespace infos::arch::x86;
 using namespace infos::arch::x86::acpi;
@@ -143,8 +146,8 @@ extern "C" void __noreturn x86_init_top()
 		(const char *)(pa_to_kva((uint64_t)multiboot_info_structure->cmdline)));	
 		
 	sys.early_init((const char *)(pa_to_kva((uint64_t)multiboot_info_structure->cmdline)));
-	
-	x86_log.message(LogLevel::DEBUG, "Initialising platform");
+
+    x86_log.message(LogLevel::DEBUG, "Initialising platform");
 	if (!x86arch.init()) {
 		syslog.message(LogLevel::ERROR, "Unable to initialise the platform");
 		goto init_error;
@@ -170,30 +173,30 @@ extern "C" void __noreturn x86_init_top()
 		goto init_error;
 	}
 
-	x86_log.message(LogLevel::DEBUG, "Initialising CPU");
-	if (!cpu_init()) {
-		syslog.message(LogLevel::ERROR, "Unable to initialise the CPU");
-		goto init_error;
-	}
-
     x86_log.message(LogLevel::DEBUG, "Initialising boot modules");
 	if (!modules_init()) {
 		syslog.message(LogLevel::ERROR, "Unable to initialise boot modules");
 		goto init_error;
 	}
-	
-	x86_log.message(LogLevel::DEBUG, "Initialising timer");
-	if (!timer_init()) {
-		syslog.message(LogLevel::ERROR, "Unable to initialise timer");
-		goto init_error;
-	}
-		
+
 	x86_log.message(LogLevel::DEBUG, "Initialising scheduler");
 	if (!sched_init()) {
 		syslog.message(LogLevel::ERROR, "Unable to initialise scheduler");
 		goto init_error;
 	}
-	
+
+    x86_log.message(LogLevel::DEBUG, "Initialising timer");
+    if (!timer_init()) {
+        syslog.message(LogLevel::ERROR, "Unable to initialise timer");
+        goto init_error;
+    }
+
+    x86_log.message(LogLevel::DEBUG, "Initialising CPU");
+    if (!cpu_init()) {
+        syslog.message(LogLevel::ERROR, "Unable to initialise the CPU");
+        goto init_error;
+    }
+
 	// Start the system, and begin executing the second-half of the
 	// arch specific initialisation.
 	sys.start(x86_init_bottom);
@@ -202,23 +205,31 @@ init_error:
 	early_abort();
 }
 
-extern "C" __noreturn void x86_core_start()
+extern "C" __noreturn void x86_core_start(Core* core_object)
 {
-    // Create and register the AP's LAPIC object.
-    LAPIC *lapic = register_lapic();
+//    gdt.reload();
+    core_object->init_dts();
 
-    uint32_t apic_id = lapic->get_id();
-    List<Core *> _cores = sys.device_manager().cores();
+    // NOTE: MUST BE IN THE ORDER
+    // BSP SCHED INIT, BSP TIMER INIT,
+    // AP SCHED INIT, AP TIMER INIT
+    // Because the scheduler starts an idle process later used during timer init
+    // when we come to use mutex locks and call the yield syscall
 
-    for (Core *core : _cores) {
-        // Find the core object for the currently executing core
-        if (core->get_lapic_id() == apic_id) {
-            // Give the core a reference to its new LAPIC object
-            core->set_lapic_ptr(lapic);
-        }
-    }
+//    syslog.messagef(LogLevel::DEBUG, "Hello world from core %u", core_object->get_lapic_id());
 
-    for (;;) asm volatile("pause");
+    // Initialise the AP's scheduler so the core has an
+    // idle process and is set up to take interrupts
+    core_object->sched_init();
+
+    // Create and register the AP's LAPIC and LAPICTimer objects.
+    core_object->lapic_init();
+    core_object->timer_init();
+
+    core_object->set_initialised(true);
+    syslog.messagef(LogLevel::DEBUG, "Set core %u state to true!", core_object->get_lapic_id());
+
+     core_object->get_scheduler().run();
 }
 
 extern "C" {

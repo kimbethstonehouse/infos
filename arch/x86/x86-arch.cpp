@@ -15,17 +15,15 @@
 #include <arch/x86/dt.h>
 #include <arch/x86/msr.h>
 #include <arch/x86/context.h>
+#include <infos/drivers/irq/core.h>
 #include <infos/kernel/log.h>
 #include <infos/kernel/thread.h>
 #include <infos/kernel/process.h>
 #include <infos/util/string.h>
 
-extern "C" {
-	infos::kernel::Thread *current_thread;
-}
-
 using namespace infos::arch;
 using namespace infos::arch::x86;
+using namespace infos::drivers::irq;
 using namespace infos::kernel;
 using namespace infos::util;
 
@@ -39,7 +37,8 @@ extern void user_syscall_handler(const IRQ *irq, void *priv);
 
 static void general_protection_fault(const IRQ *irq, void *priv)
 {
-	x86_log.message(LogLevel::FATAL, "EXCEPTION: General Protection Fault");
+    uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
+	x86_log.messagef(LogLevel::FATAL, "EXCEPTION: General Protection Fault from core %u", apic_id);
 	sys.arch().dump_current_context();
 	arch_abort();
 }
@@ -58,22 +57,22 @@ X86Arch::X86Arch()
 
 bool X86Arch::init()
 {
-	if (!gdt.init()) {
-		return false;
-	}
-	
-	if (!idt.init()) {
-		return false;
-	}
-	
-	if (!tss.init(0x28)) {
-		return false;
-	}
+//	if (!gdt.init()) {
+//		return false;
+//	}
+//
+//	if (!idt.init()) {
+//		return false;
+//	}
+//
+//	if (!tss.init(0x28)) {
+//		return false;
+//	}
 
 	uint64_t rsp;
 	asm volatile("mov %%rsp, %0" : "=r"(rsp));
 
-	x86_log.messagef(LogLevel::DEBUG, "GDTR = %p, IDTR = %p, TR = %p, RSP = %p", gdt.get_ptr(), idt.get_ptr(), tss.get_sel(), rsp);
+//	x86_log.messagef(LogLevel::DEBUG, "GDTR = %p, IDTR = %p, TR = %p, RSP = %p", gdt.get_ptr(), idt.get_ptr(), tss.get_sel(), rsp);
 	
 	__wrmsr(MSR_STAR, 0x18000800000000ULL);				// CS Bases for User-Mode/Kernel-Mode
 	__wrmsr(MSR_LSTAR, (uint64_t)__syscall_trap);		// RIP for syscall entry
@@ -87,7 +86,6 @@ bool X86Arch::init_irq()
 	if (!_irq_manager.init()) {
 		return false;
 	}
-	
 	_irq_manager.install_exception_handler(IRQ_GPF, general_protection_fault, NULL);
 	_irq_manager.install_exception_handler(IRQ_TRAP, trap_interrupt, NULL);
 	_irq_manager.install_software_handler(IRQ_KERNEL_SYSCALL, kernel_syscall_handler, NULL);
@@ -155,15 +153,15 @@ void X86Arch::invoke_kernel_syscall(int nr)
 
 infos::kernel::Thread& X86Arch::get_current_thread() const
 {
-	return *current_thread;
+    return *Core::get_current_core()->get_scheduler().current_thread();
 }
 
 void X86Arch::set_current_thread(kernel::Thread& thread)
 {
 	asm volatile("mov %0, %%cr3" :: "r"(thread.owner().vma().pgt_base()) : "memory");
-	
-	tss.set_kernel_stack(thread.context().kernel_stack);
-	current_thread = &thread;
+
+    Core::get_current_core()->tss().set_kernel_stack(thread.context().kernel_stack);
+    Core::get_current_core()->get_scheduler().set_current_thread(thread);
 }
 
 IRQ *X86Arch::request_irq()
@@ -175,20 +173,20 @@ IRQ *X86Arch::request_irq()
 extern "C" {
 	void *get_current_thread_context()
 	{
-		if (!current_thread) return NULL;
-		//assert(current_thread);
-		return &current_thread->context();
+        return (void *)&Core::get_current_core()->get_scheduler().current_thread()->context();
 	}
 	
 	void __debug_save_context()
 	{
-		assert(current_thread);
-		syslog.messagef(LogLevel::DEBUG, "Save Context %p %p", current_thread, current_thread->context());
+//        Thread *current_thread = Core::get_current_core()->get_scheduler().current_thread();
+//		assert(current_thread);
+//		syslog.messagef(LogLevel::DEBUG, "Save Context %p %p", current_thread, current_thread->context());
 	}
 
 	void __debug_restore_context()
 	{
-		assert(current_thread);
-		syslog.messagef(LogLevel::DEBUG, "Restore Context %p %p", current_thread, current_thread->context());
+//        Thread *current_thread = Core::get_current_core()->get_scheduler().current_thread();
+//        assert(current_thread);
+//		syslog.messagef(LogLevel::DEBUG, "Restore Context %p %p", current_thread, current_thread->context());
 	}
 }
