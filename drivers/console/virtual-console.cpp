@@ -132,7 +132,7 @@ int VirtualConsole::write(const void* buffer, size_t size)
 	if (!_buffer)
 		return 0;
 	
-	int attr = 0x0700;
+	int attr = 0x0100;
 	int state = 0;
 	for (unsigned int i = 0; i < size; i++) {
 		char c = ((uint8_t *)buffer)[i];

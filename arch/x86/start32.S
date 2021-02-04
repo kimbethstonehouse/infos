@@ -101,7 +101,7 @@ start32:
     wrmsr
 
     // CR0 := PG, PE, MP, EM, WP
-    mov $0x80010007, %eax
+    mov $0x80010003, %eax
     mov %eax, %cr0
 
     // Initialise the temporary GDT
