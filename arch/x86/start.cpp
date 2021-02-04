@@ -227,7 +227,7 @@ extern "C" __noreturn void x86_core_start(Core* core_object)
     core_object->timer_init();
 
     core_object->set_initialised(true);
-    syslog.messagef(LogLevel::DEBUG, "Set core %u state to true!", core_object->get_lapic_id());
+    syslog.messagef(LogLevel::IMPORTANT2, "Core %u online!", core_object->get_lapic_id());
 
      core_object->get_scheduler().run();
 }

@@ -48,7 +48,7 @@ namespace infos
 			inline DeviceManager& device_manager() { return _device_manager; }
 			inline mm::MemoryManager& mm() { return _memory_manager; }
 			inline ModuleManager& module_manager() { return _module_manager; }
-			inline Scheduler& scheduler() { return _scheduler; }
+			inline SchedulingManager& sched_manager() { return _scheduling_manager; }
 			inline fs::VirtualFilesystem& vfs() { return _vfs; }
 			inline util::CommandLine& cmdline() { return _cmdline; }
 			inline SyscallManager& syscalls() { return _scm; }
@@ -73,7 +73,7 @@ namespace infos
 			DeviceManager _device_manager;
 			mm::MemoryManager _memory_manager;
 			ModuleManager _module_manager;
-			Scheduler _scheduler;
+			SchedulingManager _scheduling_manager;
 			fs::VirtualFilesystem _vfs;
 			util::CommandLine _cmdline;
 			SyscallManager _scm;

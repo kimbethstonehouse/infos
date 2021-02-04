@@ -16,9 +16,11 @@
 #include <infos/util/cmdline.h>
 #include <arch/arch.h>
 #include <arch/x86/context.h>
+#include <arch/x86/msr.h>
 
 using namespace infos::kernel;
 using namespace infos::util;
+using namespace infos::arch::x86;
 
 ComponentLog infos::kernel::sched_log(syslog, "sched");
 
@@ -36,6 +38,38 @@ RegisterCmdLineArgument(SchedDebug, "sched.debug") {
 	}
 }
 
+SchedulingManager::SchedulingManager(Kernel &owner) : Subsystem(owner)
+{
+
+}
+
+Scheduler *SchedulingManager::pick_next_scheduler() {
+    // Lock while accessing the scheduler queue!
+    UniqueLock<util::Mutex> l(_mtx);
+
+    // Something went really wrong if we've no schedulers to run on
+    if (schedulers_.count() == 0) arch_abort();
+    // Single core!
+    if (schedulers_.count() == 1) return schedulers_.first();
+
+    // Multicore, so choose the next scheduler round robin style!
+    Scheduler *next = schedulers_.dequeue();
+    sys.sched_manager().add_scheduler(*next);
+    return next;
+}
+
+
+void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState::SchedulingEntityState state) {
+    Scheduler *sched;
+    if (entity.get_type() == SchedulingEntityType::IDLE) {
+        // This is really important. The idle entity must be given to the scheduler
+        // of the core that created it because the core forcibly activates it either way
+        sched = &infos::drivers::irq::Core::get_current_core()->get_scheduler();
+    } else sched = pick_next_scheduler();
+
+   sched->set_entity_state(entity, state);
+}
+
 Scheduler::Scheduler(Kernel& owner) : Subsystem(owner), _active(false), _current(NULL)
 {
 
@@ -51,16 +85,14 @@ static void idle_task()
 
 bool Scheduler::init()
 {
+    sys.sched_manager().add_scheduler(*this);
+
 	sched_log.message(LogLevel::INFO, "Creating idle process");
-    // todo: something goes amiss here sometimes, and the bsp stops doing what it's supposed to be doing
-    // perhaps the bsp accidentally stats running idle task?
 	Process *idle_process = new Process("idle", true, (Thread::thread_proc_t)idle_task);
 
-    sched_log.message(LogLevel::INFO, "Idle process created");
-
-
     _idle_entity = &idle_process->main_thread();
-	
+	_idle_entity->set_type(SchedulingEntityType::IDLE);
+
 	SchedulingAlgorithm *algo = acquire_scheduler_algorithm();
 	if (!algo) {
 		syslog.messagef(LogLevel::ERROR, "No scheduling algorithm available");
@@ -148,7 +180,8 @@ void Scheduler::schedule()
 	_current->update_exec_start_time(owner().runtime());
 	
 	// Debugging output for the scheduler.
-	sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s)", _current, ((Thread *)_current)->owner().name().c_str());
+    uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
+	sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s) on core %u", _current, ((Thread *)_current)->owner().name().c_str(), apic_id);
 }
 
 /**
