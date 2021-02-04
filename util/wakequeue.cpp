@@ -19,16 +19,20 @@ using namespace infos::util;
 void WakeQueue::sleep(Thread& thread)
 {
     // TODO: some sort of lock
+    _mtx.lock();
     _waiters.append(&thread);
+    _mtx.unlock();
     thread.sleep();
 }
 
 void WakeQueue::wake()
 {
     // TODO: some sort of lock
+    _mtx.lock();
     for (auto waiter : _waiters) {
         waiter->wake_up();
     }
+    _mtx.unlock();
 
     _waiters.clear();
 }

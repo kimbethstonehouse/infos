@@ -87,7 +87,7 @@ void Thread::add_entry_argument(void* arg)
 void Thread::start()
 {
 	// Set the state of this thread to be runnable.
-	Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
+	sys.sched_manager().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
 }
 
 /**
@@ -98,7 +98,6 @@ void Thread::stop()
 	// Set the state of this thread to be stopped.
     Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::STOPPED);
 
-
     // If this thread is currently running, then we must yield so that
 	// execution doesn't return into it.
 	if (&Thread::current() == this) {
@@ -108,8 +107,8 @@ void Thread::stop()
 
 void Thread::sleep()
 {
+    // Must tell the current scheduler to remove me from its runqueue
     Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::SLEEPING);
-
 
     if (&Thread::current() == this) {
 		sys.arch().invoke_kernel_syscall(1);
@@ -118,8 +117,8 @@ void Thread::sleep()
 
 void Thread::wake_up()
 {
-    Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
-
+    // When we wake up, we can again run on any scheduler
+    sys.sched_manager().set_entity_state(*this, SchedulingEntityState::RUNNABLE);
 }
 
 /**
@@ -127,7 +126,7 @@ void Thread::wake_up()
  */
 bool Thread::activate(SchedulingEntity *prev)
 {
-	// This thread can only be activated if it is runnable.
+    // This thread can only be activated if it is runnable.
 	assert(state() == SchedulingEntityState::RUNNABLE);
 	
 	// If the previous thread was actually us, then there's nothing to do.

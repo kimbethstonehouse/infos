@@ -2,6 +2,9 @@
 
 #pragma once
 
+extern "C" int spinlock_acquire(void *);
+extern "C" void spinlock_release(void *, int);
+
 namespace infos
 {
 	namespace kernel
@@ -58,17 +61,38 @@ namespace infos
         public:
             Spinlock() : _locked(0) { }
 
-            void lock() override;
-            void unlock() override;
+            void lock() override {
+                _flags = ::spinlock_acquire(&_locked);
+            }
 
-            bool locked() { return !!_locked; }
+            void unlock() override {
+                ::spinlock_release(&_locked, _flags);
+            }
 
         private:
-            Spinlock(const Spinlock& c);
-            Spinlock(const Spinlock&& c);
+            Spinlock(const Spinlock&) = delete;
+            Spinlock(Spinlock&&) = delete;
 
-            volatile unsigned long _locked;
+            unsigned int _locked;
+            int _flags;
         };
+
+//        class Spinlock : public Lock
+//        {
+//        public:
+//            Spinlock() : _locked(0) { }
+//
+//            void lock() override;
+//            void unlock() override;
+//
+//            bool locked() { return !!_locked; }
+//
+//        private:
+//            Spinlock(const Spinlock&) = delete;
+//            Spinlock(Spinlock&&) = delete;
+//
+//            volatile unsigned long _locked;
+//        };
 		
 		class ConditionVariable
 		{

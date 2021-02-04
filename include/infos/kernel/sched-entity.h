@@ -21,6 +21,15 @@ namespace infos
 				RUNNING,
 			};
 		}
+
+		namespace SchedulingEntityType
+		{
+            enum SchedulingEntityType
+            {
+                NON_IDLE,
+                IDLE
+            };
+		}
 		
 		class SchedulingEntity
 		{
@@ -29,7 +38,8 @@ namespace infos
 			typedef util::Nanoseconds EntityRuntime;
 			typedef util::KernelRuntimeClock::Timepoint EntityStartTime;
 			
-			SchedulingEntity() : _cpu_runtime(0), _exec_start_time(0), _state(SchedulingEntityState::STOPPED) { }
+			SchedulingEntity() : _cpu_runtime(0), _exec_start_time(0), _state(SchedulingEntityState::STOPPED),
+			        _type(SchedulingEntityType::NON_IDLE) {}
 			virtual ~SchedulingEntity() { }
 			
 			virtual bool activate(SchedulingEntity *prev) = 0;
@@ -42,7 +52,10 @@ namespace infos
 			SchedulingEntityState::SchedulingEntityState state() const { return _state; }
 			
 			bool stopped() const { return _state == SchedulingEntityState::STOPPED; }
-			
+
+			inline SchedulingEntityType::SchedulingEntityType get_type() { return _type;}
+			inline void set_type(SchedulingEntityType::SchedulingEntityType type) { _type = type; }
+
 			util::Event& state_changed() { return _state_changed; }
 			
 		private:
@@ -50,6 +63,7 @@ namespace infos
 			EntityStartTime _exec_start_time;
 			
 			SchedulingEntityState::SchedulingEntityState _state;
+			SchedulingEntityType::SchedulingEntityType _type;
 			util::Event _state_changed;
 		};
 	}

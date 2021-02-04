@@ -40,15 +40,15 @@ bool Mutex::locked_by_me()
 	return locked() && _owner == &Thread::current();
 }
 
-void Spinlock::lock()
-{
-    while (__sync_lock_test_and_set(&_locked, 1)) { asm volatile ("nop"); }
-}
-
-void Spinlock::unlock()
-{
-    __sync_lock_release(&_locked);
-}
+//void Spinlock::lock()
+//{
+//    while (__sync_lock_test_and_set(&_locked, 1)) { asm volatile ("nop"); }
+//}
+//
+//void Spinlock::unlock()
+//{
+//    __sync_lock_release(&_locked);
+//}
 
 void ConditionVariable::wait(Mutex& mtx)
 {

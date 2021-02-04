@@ -56,7 +56,7 @@ _object_manager(*this),
 _device_manager(*this),
 _memory_manager(*this),
 _module_manager(*this),
-_scheduler(*this),
+_scheduling_manager(*this),
 _vfs(*this)
 {
 

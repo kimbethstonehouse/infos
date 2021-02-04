@@ -31,7 +31,8 @@ namespace infos
 				WARNING,
 				ERROR,
 				FATAL,
-				IMPORTANT
+				IMPORTANT,
+				IMPORTANT2
 			};
 		}
 		

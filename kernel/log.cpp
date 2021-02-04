@@ -77,14 +77,20 @@ void SysLog::message(LogLevel::LogLevel level, const char* message)
 			}
 			_stream->write(" notice: ", 9);
 			break;
+		case LogLevel::IMPORTANT2:
+                if (_colour) {
+                    _stream->write("\x1b[37;1;43m", 10);
+                }
+                _stream->write(" notice: ", 9);
+                break;
 		}
 
-		if (_colour && level != LogLevel::IMPORTANT) {
+		if (_colour && !(level == LogLevel::IMPORTANT || level == LogLevel::IMPORTANT2)) {
 			_stream->write("\x1b[37;0m", 7);
 		}
 		
 		_stream->write(message, strlen(message));
-		if (_colour && level == LogLevel::IMPORTANT) {
+		if (_colour && (level == LogLevel::IMPORTANT || level == LogLevel::IMPORTANT2)) {
 			_stream->write("\x1b[37;0m", 7);
 		}
 

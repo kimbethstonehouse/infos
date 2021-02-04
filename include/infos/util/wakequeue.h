@@ -4,6 +4,7 @@
 
 #include <infos/define.h>
 #include <infos/util/list.h>
+#include <infos/util/lock.h>
 
 namespace infos
 {
@@ -22,6 +23,7 @@ namespace infos
 
 		private:
 			util::List<kernel::Thread *> _waiters;
+			util::Mutex _mtx;
 		};
 	}
 }
