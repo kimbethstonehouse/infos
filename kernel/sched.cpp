@@ -2,10 +2,10 @@
 
 /*
  * kernel/sched.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/kernel/sched.h>
@@ -98,7 +98,7 @@ bool Scheduler::init()
 		syslog.messagef(LogLevel::ERROR, "No scheduling algorithm available");
 		return false;
 	}
-	
+
 	syslog.messagef(LogLevel::IMPORTANT, "*** USING SCHEDULER ALGORITHM: %s", algo->name());
 
 	// Install the discovered algorithm.
@@ -181,7 +181,7 @@ void Scheduler::schedule()
 	
 	// Debugging output for the scheduler.
     uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
-	sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s) on core %u", _current, ((Thread *)_current)->owner().name().c_str(), apic_id);
+    sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s/%s) on core %u", _current, ((Thread *)_current)->owner().name().c_str(), ((Thread *)_current)->name().c_str(), apic_id);
 }
 
 /**

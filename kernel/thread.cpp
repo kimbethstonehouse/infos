@@ -27,11 +27,12 @@ using namespace infos::drivers::irq;
 /**
  * Constructs a new thread object.
  */
-Thread::Thread(Process& owner, ThreadPrivilege::ThreadPrivilege privilege, thread_proc_t entry_point)
+Thread::Thread(Process& owner, ThreadPrivilege::ThreadPrivilege privilege, thread_proc_t entry_point, const util::String& name)
 	: _owner(owner),
 		_privilege(privilege),
 		_entry_point(entry_point),
-		_current_entry_argument(0)
+		_current_entry_argument(0),
+		_name(name)
 {
 	// Clear out the thread context.
 	bzero(&_context, sizeof(_context));
@@ -142,8 +143,8 @@ bool Thread::activate(SchedulingEntity *prev)
 void Thread::allocate_user_stack(virt_addr_t vaddr, size_t size)
 {
 	int nr_pages = __align_up_page(size) >> 12;
-	
-	_owner.vma().allocate_virt(vaddr, nr_pages);	
+
+	_owner.vma().allocate_virt(vaddr, nr_pages);
 	_context.native_context->rsp = vaddr + size;
 }
 

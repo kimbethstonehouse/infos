@@ -38,7 +38,7 @@ namespace infos
 			Thread& main_thread() const { return *_main_thread; }
 			
 			Thread& create_thread(ThreadPrivilege::ThreadPrivilege privilege, Thread::thread_proc_t entry_point);
-
+			
 			util::Event& state_changed() { return _state_changed; }
 			
 		private:
