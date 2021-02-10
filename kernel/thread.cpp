@@ -149,7 +149,7 @@ void Thread::allocate_user_stack(virt_addr_t vaddr, size_t size)
 	int nr_pages = __align_up_page(size) >> 12;
 
 	_owner.vma().allocate_virt(vaddr, nr_pages);
-	_context.native_context->rsp = vaddr + size;
+	_context.native_context->rsp = vaddr + size - 8;
 }
 
 Thread& Thread::current()

@@ -32,40 +32,34 @@
 	push %r14
 	push %r15
 
-    // Load the pointer to the xsave area into RAX
-    call get_current_thread_xsave_area
-    mov %rax, %r8
-
-    // xsave flags, save everything to xsave area
-	mov     $0xFFFFFFFF, %edx
-    mov     %edx, %eax
-    #xsave   (%r8)
-
 	// Load the pointer to the thread context into RAX
 	call get_current_thread_context
+	mov %rax, %rcx
+    mov 0x10(%rcx), %rdi
+    xor %edx, %edx
+    mov $7, %eax
+    xsave (%rdi)
 
-	// 0(%rax) is the pointer to the native context, so push this
+	// 0(%rcx) is the pointer to the native context, so push this
 	// onto the stack.
-	push (%rax)
+	push (%rcx)
 
 	// Now, store the pointer to the new native context into
 	// the current thread's native context pointer.
-	mov %rsp, (%rax)	
+	mov %rsp, (%rcx)
 .endm
 
 .macro restore_context
-    // Load the pointer to the xsave area into RAX
-    call get_current_thread_xsave_area
-    mov %rax, %r8
-
-    // xsave flags, save everything to xsave area
-    mov     $0xFFFFFFFF, %edx
-    mov     %edx, %eax
-    #xrstor  (%r8)
 
  	call get_current_thread_context
-	mov (%rax), %rsp
-	pop (%rax)
+ 	mov %rax, %rcx
+ 	mov 0x10(%rcx), %rdi
+ 	xor %edx, %edx
+ 	mov $7, %eax
+ 	xrstor (%rdi)
+
+	mov (%rcx), %rsp
+	pop (%rcx)
 
 	pop %r15
 	pop %r14

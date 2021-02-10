@@ -85,11 +85,6 @@ void Kernel::start(BottomFn bottom)
 	
 	initialise_tod();
 
-//    uint64_t xcr0 = get_xcr0();
-//    syslog.messagef(LogLevel::IMPORTANT2, "xcro0=%lx", xcr0);
-//    xcr0 |= 7;
-//    set_xcr0(xcr0);
-
 	_kernel_process = new Process("kernel", true, (Thread::thread_proc_t) &start_kernel_threadproc_tramp);
 	
 	_kernel_process->main_thread().add_entry_argument((void *) this);

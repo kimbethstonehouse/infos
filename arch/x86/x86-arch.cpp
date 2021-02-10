@@ -44,6 +44,14 @@ static void general_protection_fault(const IRQ *irq, void *priv)
 	arch_abort();
 }
 
+static void floating_point_fault(const IRQ *irq, void *priv)
+{
+    uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
+    x86_log.messagef(LogLevel::FATAL, "EXCEPTION: Floating Point Fault from core %u", apic_id);
+    sys.arch().dump_current_context();
+    arch_abort();
+}
+
 static void trap_interrupt(const IRQ *irq, void *priv)
 {
 	x86_log.message(LogLevel::FATAL, "EXCEPTION: TRAP");
@@ -96,6 +104,7 @@ bool X86Arch::init_irq()
 	}
 	
 	_irq_manager.install_exception_handler(IRQ_GPF, general_protection_fault, NULL);
+	_irq_manager.install_exception_handler(IRQ_FPF, floating_point_fault, NULL);
 	_irq_manager.install_exception_handler(IRQ_TRAP, trap_interrupt, NULL);
 	_irq_manager.install_software_handler(IRQ_KERNEL_SYSCALL, kernel_syscall_handler, NULL);
 	_irq_manager.install_software_handler(IRQ_USER_SYSCALL, user_syscall_handler, NULL);
@@ -185,10 +194,10 @@ extern "C" {
         return (void *)&Core::get_current_core()->get_scheduler().current_thread()->context();
 	}
 
-	void *get_current_thread_xsave_area()
+	void *get_current_thread_xsave_area(bool restoring)
 	{
 	    uintptr_t ptr = Core::get_current_core()->get_scheduler().current_thread()->context().xsave_area;
-	    syslog.messagef(LogLevel::IMPORTANT2, "xsave area %p", ptr);
+	    syslog.messagef(LogLevel::IMPORTANT2, "xsave area %p from thread id %p, restoring %u", ptr, Core::get_current_core()->get_scheduler().current_thread(), restoring);
         return (void *)Core::get_current_core()->get_scheduler().current_thread()->context().xsave_area;
 	}
 	

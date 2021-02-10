@@ -17,6 +17,7 @@ namespace infos
 #define IRQ_TRAP			0x03
 #define IRQ_PAGE_FAULT		0x0e
 #define IRQ_GPF				0x0d
+#define IRQ_FPF             0x13
 #define IRQ_KERNEL_SYSCALL	0x80
 #define IRQ_USER_SYSCALL	0x81
 			
