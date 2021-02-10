@@ -32,6 +32,15 @@
 	push %r14
 	push %r15
 
+    // Load the pointer to the xsave area into RAX
+    call get_current_thread_xsave_area
+    mov %rax, %r8
+
+    // xsave flags, save everything to xsave area
+	mov     $0xFFFFFFFF, %edx
+    mov     %edx, %eax
+    #xsave   (%r8)
+
 	// Load the pointer to the thread context into RAX
 	call get_current_thread_context
 
@@ -45,7 +54,16 @@
 .endm
 
 .macro restore_context
-	call get_current_thread_context
+    // Load the pointer to the xsave area into RAX
+    call get_current_thread_xsave_area
+    mov %rax, %r8
+
+    // xsave flags, save everything to xsave area
+    mov     $0xFFFFFFFF, %edx
+    mov     %edx, %eax
+    #xrstor  (%r8)
+
+ 	call get_current_thread_context
 	mov (%rax), %rsp
 	pop (%rax)
 

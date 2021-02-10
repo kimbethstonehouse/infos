@@ -175,6 +175,13 @@ extern "C" {
 	{
         return (void *)&Core::get_current_core()->get_scheduler().current_thread()->context();
 	}
+
+	void *get_current_thread_xsave_area()
+	{
+	    uintptr_t ptr = Core::get_current_core()->get_scheduler().current_thread()->context().xsave_area;
+	    syslog.messagef(LogLevel::IMPORTANT2, "xsave area %p", ptr);
+        return (void *)Core::get_current_core()->get_scheduler().current_thread()->context().xsave_area;
+	}
 	
 	void __debug_save_context()
 	{

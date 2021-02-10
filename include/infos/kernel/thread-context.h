@@ -21,6 +21,7 @@ namespace infos
 		{
 			X86Context *native_context;
 			uintptr_t kernel_stack;
-		} __packed;
+            uintptr_t xsave_area;
+        } __packed;
 	}
 }

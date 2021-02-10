@@ -91,7 +91,7 @@ start32:
     out %al, $0x21
 
 	// CR4 :=
-    mov $0x6b0, %eax
+    mov $0x606b0, %eax
     mov %eax, %cr4
 
 	// EFER :=
@@ -101,7 +101,7 @@ start32:
     wrmsr
 
     // CR0 := PG, PE, MP, EM, WP
-    mov $0x80010003, %eax
+    mov $0x80050003, %eax
     mov %eax, %cr0
 
     // Initialise the temporary GDT
