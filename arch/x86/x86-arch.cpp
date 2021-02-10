@@ -11,6 +11,7 @@
 #include <arch/x86/x86-arch.h>
 #include <arch/x86/init.h>
 #include <arch/x86/cpu.h>
+#include <arch/x86/cpuid.h>
 #include <arch/x86/irq.h>
 #include <arch/x86/dt.h>
 #include <arch/x86/msr.h>
@@ -78,6 +79,13 @@ bool X86Arch::init()
 	__wrmsr(MSR_LSTAR, (uint64_t)__syscall_trap);		// RIP for syscall entry
 	__wrmsr(MSR_SFMASK, (1 << 9));
 
+	auto feat = cpuid_get_features();
+	if (!(feat.rcx & (uint64_t)CPUIDFeatures::OSXSAVE)) {
+		syslog.message(LogLevel::WARNING, "XSAVE not supported");
+	} else {
+		syslog.message(LogLevel::INFO, "XSAVE enabled");
+	}
+
 	return true;
 }
 
@@ -86,6 +94,7 @@ bool X86Arch::init_irq()
 	if (!_irq_manager.init()) {
 		return false;
 	}
+	
 	_irq_manager.install_exception_handler(IRQ_GPF, general_protection_fault, NULL);
 	_irq_manager.install_exception_handler(IRQ_TRAP, trap_interrupt, NULL);
 	_irq_manager.install_software_handler(IRQ_KERNEL_SYSCALL, kernel_syscall_handler, NULL);
