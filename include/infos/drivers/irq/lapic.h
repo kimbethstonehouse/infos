@@ -9,6 +9,11 @@ namespace infos
 {
 	namespace drivers
 	{
+		namespace timer
+		{
+			class LAPICTimer;
+		}
+
 		namespace irq
 		{
 			namespace LAPICRegisters {
@@ -46,30 +51,10 @@ namespace infos
 				};
 			}
 
-            struct ICR {
-                union {
-                    struct {
-                        // LO
-                        uint64_t vector : 8;
-                        uint64_t delivery_mode : 3;
-                        uint64_t dest_mode : 1;
-                        uint64_t reserved1 : 2;
-                        uint64_t level : 2;
-                        uint64_t reserved2 : 2;
-                        uint64_t dest_shorthand : 2;
-                        uint64_t reserved3 : 12;
-
-                        // HI
-                        uint64_t reserved4 : 24;
-                        uint64_t target : 4;
-                        uint64_t reserved5 : 4;
-                    };
-                    uint64_t bits;
-                };
-            } __packed;
-
 			class LAPIC : public Device
 			{
+				friend class timer::LAPICTimer;
+
 			public:
 				enum LVTs
 				{

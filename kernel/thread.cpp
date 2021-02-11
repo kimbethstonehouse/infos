@@ -2,10 +2,10 @@
 
 /*
  * kernel/thread.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/kernel/thread.h>
@@ -36,7 +36,7 @@ Thread::Thread(Process& owner, ThreadPrivilege::ThreadPrivilege privilege, threa
 {
 	// Clear out the thread context.
 	bzero(&_context, sizeof(_context));
-	
+
 	// Allocate the kernel stack for this thread.
 	auto kernel_stack_pgd = owner.vma().allocate_phys(KERNEL_STACK_ORDER);
 	assert(kernel_stack_pgd);
@@ -78,11 +78,11 @@ void Thread::add_entry_argument(void* arg)
 	case 3:
 		_context.native_context->rcx = (uint64_t)arg;
 		break;
-		
+
 	default:
 		return;
 	}
-	
+
 	_current_entry_argument++;
 }
 
@@ -115,7 +115,7 @@ void Thread::sleep()
     // Must tell the current scheduler to remove me from its runqueue
     Core::get_current_core()->get_scheduler().set_entity_state(*this, SchedulingEntityState::SLEEPING);
 
-    if (&Thread::current() == this) {
+	if (&Thread::current() == this) {
 		sys.arch().invoke_kernel_syscall(1);
 	}
 }
@@ -131,15 +131,15 @@ void Thread::wake_up()
  */
 bool Thread::activate(SchedulingEntity *prev)
 {
-    // This thread can only be activated if it is runnable.
+	// This thread can only be activated if it is runnable.
 	assert(state() == SchedulingEntityState::RUNNABLE);
-	
+
 	// If the previous thread was actually us, then there's nothing to do.
 	if (prev == this) return true;
-	
+
 	// Set the current thread to be us.
 	sys.arch().set_current_thread(*this);
-	
+
 	// Success!
 	return true;
 }
@@ -160,7 +160,7 @@ Thread& Thread::current()
 void Thread::prepare_initial_stack()
 {
 	uint64_t *stack = (uint64_t *)context().kernel_stack;
-	
+
 	// System Context
 	*--stack = is_kernel_thread() ? 0x10 : 0x23;	// SS
 	*--stack = 0;									// RSP
@@ -168,7 +168,7 @@ void Thread::prepare_initial_stack()
 	*--stack = is_kernel_thread() ? 0x8 : 0x1b;		// CS
 	*--stack = (uint64_t)_entry_point;				// RIP
 	*--stack = 0;									// EXTRA
-	
+
 	// Thread Context
 	*--stack = 0;	// RAX
 	*--stack = 0;	// RBX
@@ -187,6 +187,6 @@ void Thread::prepare_initial_stack()
 	*--stack = 0;	// R15
 	*--stack = 0;	// Previous Context
 
-	_context.native_context = (X86Context *)((uintptr_t)stack);	
+	_context.native_context = (X86Context *)((uintptr_t)stack);
 	_context.native_context->rsp = (uint64_t)context().kernel_stack;
 }

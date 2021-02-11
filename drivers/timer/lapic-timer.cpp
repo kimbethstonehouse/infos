@@ -42,12 +42,29 @@ void LAPICTimer::set_lapic_ptr(drivers::irq::LAPIC *lapic) {
     _lapic = lapic;
 }
 
+extern "C" uint32_t lapic_fast_calibrate(volatile void *);
+
 /**
  * Calibrate the LAPIC timer by measuring its tick rate with respect to a known tick rate.
  * @return Returns TRUE if the calibration suceeded, or FALSE otherwise.
  */
 bool LAPICTimer::calibrate()
 {
+#if 1
+	uint32_t ticks = lapic_fast_calibrate(_lapic->_apic_base);
+
+	lapic_timer_log.messagef(LogLevel::DEBUG, "ticks=%x", ticks);
+	// Calculate the number of ticks per calibration period (accounting for the LAPIC division)
+	uint32_t ticks_per_period = ((0xffffffffu - ticks) + 1);
+
+	lapic_timer_log.messagef(LogLevel::DEBUG, "ticks-per-period=%u", ticks_per_period);
+
+	ticks_per_period <<= 4;
+	lapic_timer_log.messagef(LogLevel::DEBUG, "scaled ticks-per-period=%u", ticks_per_period);
+
+	// Determine the LAPIC base frequency
+	_frequency = (ticks_per_period * 100u);
+#else
 	PIT *pit;
 	
 	// Attempt to lookup the PIT (programmable interrupt timer), so that we have a
@@ -56,6 +73,8 @@ bool LAPICTimer::calibrate()
 		lapic_timer_log.message(LogLevel::ERROR, "LAPIC requires the PIT");
 		return false;
 	}
+
+	lapic_timer_log.message(LogLevel::DEBUG, "Calibrating...");
 
 	// Some useful constants for the calibration
 	#define FACTOR					1000
@@ -66,8 +85,7 @@ bool LAPICTimer::calibrate()
 	lapic_timer_log.messagef(LogLevel::DEBUG, "calibration ticks=%d", (uint32_t)CALIBRATION_TICKS);
 	
 	// Initialise the LAPIC and the PIT for one-shot operation.
-//    pit->lock();
-    this->init_oneshot(0xffffffff);
+	this->init_oneshot(0xffffffff);
 	pit->init_oneshot(CALIBRATION_TICKS);		// 10ms
 	
 	// Start the PIT and the LAPIC
@@ -82,7 +100,6 @@ bool LAPICTimer::calibrate()
 
 	// Stop the PIT
 	pit->stop();
-//	pit->unlock();
 
 	// Calculate the number of ticks per period (accounting for the LAPIC division)
 	uint32_t ticks_per_period = (0xffffffff - count());
@@ -90,8 +107,9 @@ bool LAPICTimer::calibrate()
 	
 	lapic_timer_log.messagef(LogLevel::DEBUG, "ticks-per-period=%u", ticks_per_period);
 
-    // Determine the LAPIC base frequency
-    _frequency = (ticks_per_period * (FACTOR/CALIBRATION_PERIOD));
+	// Determine the LAPIC base frequency
+	_frequency = (ticks_per_period * (FACTOR/CALIBRATION_PERIOD));
+#endif
 
 	lapic_timer_log.messagef(LogLevel::DEBUG, "frequency=%lu", _frequency);
 	
@@ -105,10 +123,13 @@ bool LAPICTimer::calibrate()
  */
 bool LAPICTimer::init(kernel::DeviceManager& dm)
 {
-	_irq = &_lapic->timer_irq();
-    _irq->attach(lapic_timer_irq_handler, this);
+	if (!dm.try_get_device_by_class(LAPIC::LAPICDeviceClass, _lapic))
+		return false;
 
-    // Initialise the timer controls
+	_irq = &_lapic->timer_irq();
+	_irq->attach(lapic_timer_irq_handler, this);
+	
+	// Initialise the timer controls
 	_lapic->set_timer_divide(3);	
 	_lapic->set_timer_initial_count(1);
 
@@ -185,6 +206,8 @@ bool LAPICTimer::expired() const
 	return false;
 }
 
+static uint64_t last_tsc = 0;
+
 /**
  * The IRQ handler for the LAPIC timer.
  * @param nr The IRQ number that occurred.
@@ -192,6 +215,21 @@ bool LAPICTimer::expired() const
  */
 void LAPICTimer::lapic_timer_irq_handler(const IRQ *irq, void* priv)
 {
+	/*uint32_t tscl, tsch;
+	asm volatile("rdtsc" : "=a"(tscl), "=d"(tsch));
+
+	uint64_t tsc = tscl | (uint64_t)tsch << 32;
+	uint64_t delta_tsc = tsc - last_tsc;
+	last_tsc = tsc;
+
+	uint64_t khz = 3600000;
+	uint64_t shift = 32;
+	uint64_t scale = (1000000 * shift) / khz;
+
+	uint64_t ns = (delta_tsc * scale) / shift;*/
+
+	//syslog.messagef(LogLevel::DEBUG, "ns = %lu", ns);
+
 	// HACK HACK HACK -- this shouldn't be hard-coded in
 	Scheduler& sched = Core::get_current_core()->get_scheduler();
 

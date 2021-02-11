@@ -35,11 +35,16 @@
 	// Load the pointer to the thread context into RAX
 	call get_current_thread_context
 	mov %rax, %rcx
-    mov 0x10(%rcx), %rdi
-    xor %edx, %edx
-    mov $7, %eax
-    xsave (%rdi)
+	mov 0x10(%rcx), %rdi
 
+	test %rdi, %rdi
+	jz 1f
+
+	xor %edx, %edx
+	mov $7, %eax
+	xsave (%rdi)
+
+1:
 	// 0(%rcx) is the pointer to the native context, so push this
 	// onto the stack.
 	push (%rcx)
@@ -50,14 +55,18 @@
 .endm
 
 .macro restore_context
+	call get_current_thread_context
+	mov %rax, %rcx
+	mov 0x10(%rcx), %rdi
 
- 	call get_current_thread_context
- 	mov %rax, %rcx
- 	mov 0x10(%rcx), %rdi
- 	xor %edx, %edx
- 	mov $7, %eax
- 	xrstor (%rdi)
+	test %rdi, %rdi
+	jz 1f
 
+	xor %edx, %edx
+	mov $7, %eax
+	xrstor (%rdi)
+
+1:
 	mov (%rcx), %rsp
 	pop (%rcx)
 
