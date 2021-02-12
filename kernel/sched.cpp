@@ -45,7 +45,7 @@ SchedulingManager::SchedulingManager(Kernel &owner) : Subsystem(owner)
 
 Scheduler *SchedulingManager::pick_next_scheduler() {
     // Lock while accessing the scheduler queue!
-    UniqueLock<util::Mutex> l(_mtx);
+//    UniqueLock<util::Mutex> l(_mtx);
 
     // Something went really wrong if we've no schedulers to run on
     if (schedulers_.count() == 0) arch_abort();
@@ -53,11 +53,20 @@ Scheduler *SchedulingManager::pick_next_scheduler() {
     if (schedulers_.count() == 1) return schedulers_.first();
 
     // Multicore, so choose the next scheduler round robin style!
-    Scheduler *next = schedulers_.dequeue();
+    Scheduler *next = get_scheduler();
     sys.sched_manager().add_scheduler(*next);
     return next;
 }
 
+void SchedulingManager::add_scheduler(Scheduler &scheduler) {
+    UniqueLock<util::Mutex> l(_mtx);
+    schedulers_.enqueue(&scheduler);
+}
+
+Scheduler *SchedulingManager::get_scheduler() {
+    UniqueLock<util::Mutex> l(_mtx);
+    return schedulers_.dequeue();
+}
 
 void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState::SchedulingEntityState state) {
     Scheduler *sched;

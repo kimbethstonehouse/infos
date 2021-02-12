@@ -38,7 +38,8 @@ namespace infos
 		    SchedulingManager(Kernel& owner);
             void set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state);
             Scheduler *pick_next_scheduler();
-            inline void add_scheduler(Scheduler &scheduler) { schedulers_.enqueue(&scheduler); }
+            void add_scheduler(Scheduler &scheduler);
+            Scheduler *get_scheduler();
 		private:
 		    infos::util::List<Scheduler *> schedulers_;
 		    infos::util::Mutex _mtx;
