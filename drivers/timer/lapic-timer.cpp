@@ -123,12 +123,12 @@ bool LAPICTimer::calibrate()
  */
 bool LAPICTimer::init(kernel::DeviceManager& dm)
 {
-	if (!dm.try_get_device_by_class(LAPIC::LAPICDeviceClass, _lapic))
-		return false;
+//	if (!dm.try_get_device_by_class(LAPIC::LAPICDeviceClass, _lapic))
+//		return false;
 
 	_irq = &_lapic->timer_irq();
 	_irq->attach(lapic_timer_irq_handler, this);
-	
+
 	// Initialise the timer controls
 	_lapic->set_timer_divide(3);	
 	_lapic->set_timer_initial_count(1);
