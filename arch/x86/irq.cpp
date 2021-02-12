@@ -199,6 +199,7 @@ void ExceptionIRQ::handle() const
 	// Invoke the handler function, but if it failed to invoke, halt the system.
 	if (!invoke()) {
 		x86_log.messagef(LogLevel::FATAL, "Unhandled Exception %u", nr());
+		sys_arch.dump_current_context();
 		arch_abort();
 	}
 }
