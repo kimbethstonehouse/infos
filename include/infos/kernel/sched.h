@@ -28,7 +28,7 @@ namespace infos
 		public:
 			virtual const char *name() const = 0;
 			virtual SchedulingEntity *pick_next_entity();
-			
+			virtual int load() = 0;
 			virtual void add_to_runqueue(SchedulingEntity& entity) = 0;
 			virtual void remove_from_runqueue(SchedulingEntity& entity) = 0;
 		};
@@ -37,7 +37,11 @@ namespace infos
 		public:
 		    SchedulingManager(Kernel& owner);
             void set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state);
-            Scheduler *pick_next_scheduler();
+            Scheduler *next_sched_rr();
+            Scheduler *next_sched_load_bal();
+            Scheduler *next_sched_rand();
+            Scheduler *next_sched_proc_affin(SchedulingEntity& entity);
+
             void add_scheduler(Scheduler &scheduler);
             Scheduler *get_scheduler();
 		private:
@@ -56,7 +60,7 @@ namespace infos
             Scheduler(const Scheduler&) = delete;
 			
 			bool init();
-			
+
 			SchedulingAlgorithm& algorithm() const { return *_algorithm; }
 			void algorithm(SchedulingAlgorithm& algorithm) { _algorithm = &algorithm; }
 			
@@ -69,7 +73,7 @@ namespace infos
 
 			SchedulingEntity& current_entity() const { return *_current; }
 			Thread* current_thread() const { return _current_thread; }
-			
+
 			void update_accounting();
 			
 		private:

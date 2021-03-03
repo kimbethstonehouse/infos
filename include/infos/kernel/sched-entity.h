@@ -39,7 +39,7 @@ namespace infos
 			typedef util::KernelRuntimeClock::Timepoint EntityStartTime;
 			
 			SchedulingEntity() : _cpu_runtime(0), _exec_start_time(0), _state(SchedulingEntityState::STOPPED),
-			        _type(SchedulingEntityType::NON_IDLE) {}
+			        _type(SchedulingEntityType::NON_IDLE), _proc_affinity(false) {}
 			virtual ~SchedulingEntity() { }
 			
 			virtual bool activate(SchedulingEntity *prev) = 0;
@@ -52,6 +52,12 @@ namespace infos
 			SchedulingEntityState::SchedulingEntityState state() const { return _state; }
 			
 			bool stopped() const { return _state == SchedulingEntityState::STOPPED; }
+            inline bool proc_affinity() { return _proc_affinity; }
+            inline Scheduler *affined_scheduler() { return _affined_scheduler; }
+            inline void set_affinity(Scheduler &sched) {
+			    _proc_affinity = true;
+			    _affined_scheduler = &sched;
+			}
 
 			inline SchedulingEntityType::SchedulingEntityType get_type() { return _type;}
 			inline void set_type(SchedulingEntityType::SchedulingEntityType type) { _type = type; }
@@ -65,6 +71,8 @@ namespace infos
 			SchedulingEntityState::SchedulingEntityState _state;
 			SchedulingEntityType::SchedulingEntityType _type;
 			util::Event _state_changed;
+			bool _proc_affinity;
+			Scheduler *_affined_scheduler;
 		};
 	}
 }

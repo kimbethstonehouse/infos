@@ -116,6 +116,14 @@ bool LAPICTimer::calibrate()
 	return true;
 }
 
+int64_t LAPICTimer::rd_tsc() {
+    uint32_t tscl, tsch;
+    asm volatile("rdtsc" : "=a"(tscl), "=d"(tsch));
+
+    uint64_t tsc = tscl | (uint64_t)tsch << 32;
+    return tsc;
+}
+
 /**
  * Initialises the LAPIC timer device
  * @param dm The device manager that manages this device.
@@ -235,7 +243,7 @@ void LAPICTimer::lapic_timer_irq_handler(const IRQ *irq, void* priv)
 
     // Only have the BSP update the system runtime
     if (Core::get_current_core()->get_state() == irq::Core::core_state::BOOTSTRAP) {
-        sys.update_runtime(DurationCast<Nanoseconds>(Milliseconds(10)));		// Tell the kernel to update its internal runtime with +10mS
+        sys.update_runtime(DurationCast<Nanoseconds>(Milliseconds(4)));		// Tell the kernel to update its internal runtime with +4mS
     }
 
 	sched.update_accounting();		// Tell the scheduler to update process accounting

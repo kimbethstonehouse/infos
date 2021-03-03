@@ -49,6 +49,15 @@ public:
 		runqueue.remove(&entity);
 	}
 
+    /**
+     * Called when deciding which scheduler to allocate a new thread to.
+     * Returns the number of tasks in the runqueue.
+     */
+	int load() override
+    {
+	    return runqueue.count();
+    }
+
 	/**
 	 * Called every time a scheduling event occurs, to cause the next eligible entity
 	 * to be chosen.  The next eligible entity might actually be the same entity, if

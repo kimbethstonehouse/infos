@@ -25,9 +25,14 @@ using namespace infos::arch::x86;
 ComponentLog infos::kernel::sched_log(syslog, "sched");
 
 static char sched_algorithm[32];
+static char core_algorithm[32];
 
 RegisterCmdLineArgument(SchedAlgorithm, "sched.algorithm") {
 	strncpy(sched_algorithm, value, sizeof(sched_algorithm)-1);
+}
+
+RegisterCmdLineArgument(CoreAlg, "core.algorithm") {
+    strncpy(core_algorithm, value, sizeof(core_algorithm)-1);
 }
 
 RegisterCmdLineArgument(SchedDebug, "sched.debug") {
@@ -43,10 +48,7 @@ SchedulingManager::SchedulingManager(Kernel &owner) : Subsystem(owner)
 
 }
 
-Scheduler *SchedulingManager::pick_next_scheduler() {
-    // Lock while accessing the scheduler queue!
-//    UniqueLock<util::Mutex> l(_mtx);
-
+Scheduler *SchedulingManager::next_sched_rr() {
     // Something went really wrong if we've no schedulers to run on
     if (schedulers_.count() == 0) arch_abort();
     // Single core!
@@ -56,6 +58,37 @@ Scheduler *SchedulingManager::pick_next_scheduler() {
     Scheduler *next = get_scheduler();
     sys.sched_manager().add_scheduler(*next);
     return next;
+}
+
+Scheduler *SchedulingManager::next_sched_rand() {
+    UniqueLock<util::Mutex> l(_mtx);
+
+    // read current timepoint and take modulo
+    // number of schedulers to choose a random scheduler
+    int64_t tsc = infos::drivers::timer::LAPICTimer::rd_tsc();
+    int random_idx = tsc % schedulers_.count();
+    return schedulers_.at(random_idx);
+}
+
+Scheduler *SchedulingManager::next_sched_load_bal() {
+    // Multicore, so choose the scheduler with the smallest runqueue!
+    int min = schedulers_.first()->algorithm().load();
+    Scheduler *next = schedulers_.first();
+
+    for (Scheduler *sched : schedulers_) {
+        if (sched->algorithm().load() < min) {
+            min = sched->algorithm().load();
+            next = sched;
+        }
+    }
+
+    return next;
+}
+
+Scheduler *SchedulingManager::next_sched_proc_affin(SchedulingEntity &entity) {
+    if (entity.proc_affinity()) {
+        return entity.affined_scheduler();
+    } else return next_sched_rr();
 }
 
 void SchedulingManager::add_scheduler(Scheduler &scheduler) {
@@ -70,13 +103,29 @@ Scheduler *SchedulingManager::get_scheduler() {
 
 void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState::SchedulingEntityState state) {
     Scheduler *sched;
+
+    // Something went really wrong if we've no schedulers to run on
+    if (schedulers_.count() == 0) arch_abort();
+    // Single core!
+    if (schedulers_.count() == 1) sched = schedulers_.first();
+
     if (entity.get_type() == SchedulingEntityType::IDLE) {
         // This is really important. The idle entity must be given to the scheduler
         // of the core that created it because the core forcibly activates it either way
         sched = &infos::drivers::irq::Core::get_current_core()->get_scheduler();
-    } else sched = pick_next_scheduler();
+    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_load_bal();
+    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_proc_affin(entity);
+    } else if (strncmp(core_algorithm, "rr", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_rr();
+    } else {
+        // Default is random
+        sched = next_sched_rand();
+    }
 
-   sched->set_entity_state(entity, state);
+    entity.set_affinity(*sched);
+    sched->set_entity_state(entity, state);
 }
 
 Scheduler::Scheduler(Kernel& owner) : Subsystem(owner), _active(false), _current(NULL)

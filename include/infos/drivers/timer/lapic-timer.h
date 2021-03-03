@@ -26,6 +26,7 @@ namespace infos {
 			class LAPICTimer : public Timer {
 			public:
 				static const DeviceClass LAPICTimerDeviceClass;
+                static int64_t rd_tsc();
 
 				LAPICTimer();
 
@@ -34,11 +35,10 @@ namespace infos {
                 const DeviceClass& device_class() const override {
 					return LAPICTimerDeviceClass;
 				}
-				
-				bool init(kernel::DeviceManager& dm) override;
 
-				void init_oneshot(uint64_t period) override;
-				void init_periodic(uint64_t period) override;
+				bool init(kernel::DeviceManager& dm) override;
+                void init_oneshot(uint64_t period) override;
+                void init_periodic(uint64_t period) override;
 
 				void start() override;
 				void stop() override;
