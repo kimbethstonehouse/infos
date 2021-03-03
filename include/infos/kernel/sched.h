@@ -41,6 +41,7 @@ namespace infos
             Scheduler *next_sched_load_bal();
             Scheduler *next_sched_rand();
             Scheduler *next_sched_proc_affin(SchedulingEntity& entity);
+            int rdrand16_step(uint16_t *rand);
 
             void add_scheduler(Scheduler &scheduler);
             Scheduler *get_scheduler();

@@ -60,13 +60,25 @@ Scheduler *SchedulingManager::next_sched_rr() {
     return next;
 }
 
+int SchedulingManager::rdrand16_step(uint16_t *rand)
+{
+    unsigned char ok;
+
+    asm volatile ("rdrand %0; setc %1"
+    : "=r" (*rand), "=qm" (ok));
+
+    return (int) ok;
+}
+
+
 Scheduler *SchedulingManager::next_sched_rand() {
     UniqueLock<util::Mutex> l(_mtx);
 
-    // read current timepoint and take modulo
-    // number of schedulers to choose a random scheduler
-    int64_t tsc = infos::drivers::timer::LAPICTimer::rd_tsc();
-    int random_idx = tsc % schedulers_.count();
+    // Choose a random scheduler
+    uint16_t random_idx;
+    rdrand16_step(&random_idx);
+    random_idx = random_idx % (schedulers_.count());
+    syslog.messagef(LogLevel::IMPORTANT2, "Scheduler %u chosen from %u", random_idx, schedulers_.count());
     return schedulers_.at(random_idx);
 }
 
