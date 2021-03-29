@@ -122,6 +122,7 @@ void infos::arch::x86::start_core(Core* core, LAPIC* lapic, PIT* pit) {
     }
 
     if (!*ready_flag) {
+        core->set_state(Core::core_state::ERROR);
         cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "core %u error, skipping", processor_id);
         return;
     } else {

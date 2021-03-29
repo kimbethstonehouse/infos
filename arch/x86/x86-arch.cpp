@@ -2,10 +2,10 @@
 
 /*
  * arch/x86/x86-arch.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <arch/x86/x86-arch.h>
@@ -82,7 +82,7 @@ bool X86Arch::init()
 	asm volatile("mov %%rsp, %0" : "=r"(rsp));
 
 //	x86_log.messagef(LogLevel::DEBUG, "GDTR = %p, IDTR = %p, TR = %p, RSP = %p", gdt.get_ptr(), idt.get_ptr(), tss.get_sel(), rsp);
-	
+
 	__wrmsr(MSR_STAR, 0x18000800000000ULL);				// CS Bases for User-Mode/Kernel-Mode
 	__wrmsr(MSR_LSTAR, (uint64_t)__syscall_trap);		// RIP for syscall entry
 	__wrmsr(MSR_SFMASK, (1 << 9));
@@ -102,13 +102,13 @@ bool X86Arch::init_irq()
 	if (!_irq_manager.init()) {
 		return false;
 	}
-	
+
 	_irq_manager.install_exception_handler(IRQ_GPF, general_protection_fault, NULL);
 	_irq_manager.install_exception_handler(IRQ_FPF, floating_point_fault, NULL);
 	_irq_manager.install_exception_handler(IRQ_TRAP, trap_interrupt, NULL);
 	_irq_manager.install_software_handler(IRQ_KERNEL_SYSCALL, kernel_syscall_handler, NULL);
 	_irq_manager.install_software_handler(IRQ_USER_SYSCALL, user_syscall_handler, NULL);
-	
+
 	return true;
 }
 
@@ -135,7 +135,7 @@ void X86Arch::dump_native_context(const X86Context& native_context) const
 			native_context.rbx,
 			native_context.rcx,
 			native_context.rdx);
-	
+
 	syslog.messagef(LogLevel::DEBUG, "rsi=%016lx, rdi=%016lx, rsp=%016lx, rbp=%016lx",
 			native_context.rsi,
 			native_context.rdi,
@@ -184,7 +184,7 @@ void X86Arch::set_current_thread(kernel::Thread& thread)
 
 IRQ *X86Arch::request_irq()
 {
-	
+
 	return NULL; //_irq_manager.request_irq();
 }
 
@@ -200,7 +200,7 @@ extern "C" {
 	    syslog.messagef(LogLevel::IMPORTANT2, "xsave area %p from thread id %p, restoring %u", ptr, Core::get_current_core()->get_scheduler().current_thread(), restoring);
         return (void *)Core::get_current_core()->get_scheduler().current_thread()->context().xsave_area;
 	}
-	
+
 	void __debug_save_context()
 	{
 //        Thread *current_thread = Core::get_current_core()->get_scheduler().current_thread();

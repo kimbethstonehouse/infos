@@ -2,9 +2,9 @@
 
 /*
  * kernel/sched-cfs.cpp
- * 
+ *
  * A poor implementation of the Completely Fair Scheduling algorithm, from the Linux kernel.
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
  * Tom Spink <tspink@inf.ed.ac.uk>
@@ -28,14 +28,14 @@ public:
 	 * Returns the friendly name of the algorithm, for debugging and selection purposes.
 	 */
 	const char* name() const override { return "cfs"; }
-	
+
 	/**
 	 * Called when a scheduling entity becomes eligible for running.
 	 * @param entity
 	 */
 	void add_to_runqueue(SchedulingEntity& entity) override
 	{
-		UniqueIRQLock l;
+        UniqueLock<SpinLock> l(_lock);
 		runqueue.enqueue(&entity);
 	}
 
@@ -45,7 +45,7 @@ public:
 	 */
 	void remove_from_runqueue(SchedulingEntity& entity) override
 	{
-		UniqueIRQLock l;
+        UniqueLock<SpinLock> l(_lock);
 		runqueue.remove(&entity);
 	}
 
@@ -55,6 +55,7 @@ public:
      */
 	int load() override
     {
+		UniqueLock<SpinLock> l(_lock);
 	    return runqueue.count();
     }
 
@@ -64,10 +65,11 @@ public:
 	 * e.g. its timeslice has not expired.
 	 */
 	SchedulingEntity *pick_next_entity() override
-	{	
+	{
+	    UniqueLock<SpinLock> l(_lock);
 		if (runqueue.count() == 0) return NULL;
 		if (runqueue.count() == 1) return runqueue.first();
-		
+
 		SchedulingEntity::EntityRuntime min_runtime = 0;
 		SchedulingEntity *min_runtime_entity = NULL;
 		for (const auto& entity : runqueue) {
@@ -76,12 +78,13 @@ public:
 				min_runtime = entity->cpu_runtime();
 			}
 		}
-				
+
 		return min_runtime_entity;
 	}
-	
+
 private:
 	List<SchedulingEntity *> runqueue;
+	SpinLock _lock;
 };
 
 /* --- DO NOT CHANGE ANYTHING BELOW THIS LINE --- */

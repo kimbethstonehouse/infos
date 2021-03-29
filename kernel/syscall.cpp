@@ -16,6 +16,7 @@
 #include <infos/fs/file.h>
 #include <infos/fs/directory.h>
 #include <infos/util/string.h>
+#include <infos/util/time.h>
 #include <arch/arch.h>
 
 using namespace infos::kernel;

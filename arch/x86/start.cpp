@@ -229,6 +229,8 @@ extern "C" __noreturn void x86_core_start(Core* core_object)
     core_object->set_initialised(true);
     syslog.messagef(LogLevel::IMPORTANT2, "Core %u online!", core_object->get_lapic_id());
 
+//    for (;;) asm volatile ("nop");
+
      core_object->get_scheduler().run();
 }
 

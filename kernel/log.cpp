@@ -2,10 +2,10 @@
 
 /*
  * kernel/log.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/kernel/log.h>
@@ -21,7 +21,7 @@ __init_priority(101) SysLog infos::kernel::syslog;
 void Log::messagef(LogLevel::LogLevel level, const char* format, ...)
 {
 	if (!enabled()) return;
-	
+
 	char buffer[0x200];
 	va_list args;
 
@@ -36,9 +36,9 @@ void Log::messagef(LogLevel::LogLevel level, const char* format, ...)
 void SysLog::message(LogLevel::LogLevel level, const char* message)
 {
 	if (!enabled()) return;
-	
+
 	if (_stream) {
-		UniqueLock<Spinlock> l(_spnlck);
+		UniqueLock<SpinLock> l(_spnlck);
 
 		switch (level) {
 		case LogLevel::DEBUG:
@@ -88,7 +88,7 @@ void SysLog::message(LogLevel::LogLevel level, const char* message)
 		if (_colour && !(level == LogLevel::IMPORTANT || level == LogLevel::IMPORTANT2)) {
 			_stream->write("\x1b[37;0m", 7);
 		}
-		
+
 		_stream->write(message, strlen(message));
 		if (_colour && (level == LogLevel::IMPORTANT || level == LogLevel::IMPORTANT2)) {
 			_stream->write("\x1b[37;0m", 7);
@@ -106,9 +106,9 @@ ComponentLog::ComponentLog(Log& parent, const char *component_name) : _parent(pa
 void ComponentLog::message(LogLevel::LogLevel level, const char* message)
 {
 	if (!enabled()) return;
-	
+
 	char message_buffer[0x200];
 	snprintf(message_buffer, sizeof(message_buffer), "%s: %s", _component_name, message);
-	
+
 	_parent.message(level, message_buffer);
 }

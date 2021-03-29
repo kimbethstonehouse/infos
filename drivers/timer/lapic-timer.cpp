@@ -2,10 +2,10 @@
 
 /*
  * drivers/timer/lapic-timer.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/drivers/timer/lapic-timer.h>
@@ -66,7 +66,7 @@ bool LAPICTimer::calibrate()
 	_frequency = (ticks_per_period * 100u);
 #else
 	PIT *pit;
-	
+
 	// Attempt to lookup the PIT (programmable interrupt timer), so that we have a
 	// known timing base to measure the LAPIC.
 	if (!sys.device_manager().try_get_device_by_class(PIT::PITDeviceClass, pit)) {
@@ -83,18 +83,18 @@ bool LAPICTimer::calibrate()
 	#define CALIBRATION_TICKS		(uint16_t)((PIT_FREQUENCY * CALIBRATION_PERIOD) / FACTOR)
 
 	lapic_timer_log.messagef(LogLevel::DEBUG, "calibration ticks=%d", (uint32_t)CALIBRATION_TICKS);
-	
+
 	// Initialise the LAPIC and the PIT for one-shot operation.
 	this->init_oneshot(0xffffffff);
 	pit->init_oneshot(CALIBRATION_TICKS);		// 10ms
-	
+
 	// Start the PIT and the LAPIC
 	pit->start();
 	this->start();
-	
+
 	// Spin until the PIT expires
 	while (!pit->expired());
-	
+
 	// Stop the LAPIC
 	this->stop();
 
@@ -104,7 +104,7 @@ bool LAPICTimer::calibrate()
 	// Calculate the number of ticks per period (accounting for the LAPIC division)
 	uint32_t ticks_per_period = (0xffffffff - count());
 	ticks_per_period <<= 4;
-	
+
 	lapic_timer_log.messagef(LogLevel::DEBUG, "ticks-per-period=%u", ticks_per_period);
 
 	// Determine the LAPIC base frequency
@@ -112,7 +112,7 @@ bool LAPICTimer::calibrate()
 #endif
 
 	lapic_timer_log.messagef(LogLevel::DEBUG, "frequency=%lu", _frequency);
-	
+
 	return true;
 }
 
@@ -138,7 +138,7 @@ bool LAPICTimer::init(kernel::DeviceManager& dm)
 	_irq->attach(lapic_timer_irq_handler, this);
 
 	// Initialise the timer controls
-	_lapic->set_timer_divide(3);	
+	_lapic->set_timer_divide(3);
 	_lapic->set_timer_initial_count(1);
 
 	// Calibrate the timer.
@@ -177,7 +177,7 @@ void LAPICTimer::reset()
 void LAPICTimer::init_oneshot(uint64_t period)
 {
 	reset();
-	
+
 	_lapic->set_timer_one_shot();
 	_lapic->set_timer_initial_count(period);
 }
@@ -189,7 +189,7 @@ void LAPICTimer::init_oneshot(uint64_t period)
 void LAPICTimer::init_periodic(uint64_t period)
 {
 	reset();
-	
+
 	_lapic->set_timer_periodic();
 	_lapic->set_timer_initial_count(period);
 }
@@ -205,7 +205,7 @@ uint64_t LAPICTimer::count() const
 
 /**
  * Determines whether or not the timer has expired.
- * @return 
+ * @return
  */
 bool LAPICTimer::expired() const
 {

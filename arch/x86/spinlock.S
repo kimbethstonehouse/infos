@@ -15,13 +15,6 @@
 .globl spinlock_acquire
 .type spinlock_acquire, %function
 spinlock_acquire:
-/*    pushf
-#    pop %rax
-#    test $0x200, %eax
-#    mov $0, %eax
-#    setnz %al */
-    cli
-
     lock btsl $0, (%rdi)
     jc 1f
     ret
@@ -39,9 +32,5 @@ spinlock_acquire:
 .type spinlock_release, %function
 spinlock_release:
     movl $0, (%rdi)
-#    test %esi,%esi
-#    jz 1f
-    sti
-1:
     ret
 .size spinlock_release,.-spinlock_release

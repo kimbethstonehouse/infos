@@ -15,6 +15,7 @@
 #include <infos/kernel/sched-entity.h>
 #include <infos/util/list.h>
 #include <infos/util/string.h>
+#include <infos/util/time.h>
 
 namespace infos
 {
@@ -45,6 +46,7 @@ namespace infos
 			void start();
 			void stop();
 			void sleep();
+			void sleep_for(util::Nanoseconds time);
 			void wake_up();
 
 			void allocate_user_stack(virt_addr_t vaddr, size_t size);
