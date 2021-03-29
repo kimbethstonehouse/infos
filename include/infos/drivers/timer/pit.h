@@ -34,6 +34,8 @@ namespace infos
                 uint64_t frequency() const override { return 1193180; }
 
                 void spin(uint64_t nanoseconds);
+			private:
+			    util::SpinLock spnlck_;
             };
 		}
 	}

@@ -134,9 +134,9 @@ void infos::arch::x86::start_core(Core* core, LAPIC* lapic, PIT* pit) {
 //    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "waiting for core %u to be ready", processor_id);
 
     // wait for core to finish setup before moving on
-    while(!core->is_initialised()) {
-        asm volatile ("nop");
-    }
+//    while(!core->is_initialised()) {
+//        asm volatile ("nop");
+//    }
 
 //    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "core %u ready, moving on", processor_id);
 }
