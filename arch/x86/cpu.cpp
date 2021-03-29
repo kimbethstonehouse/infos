@@ -10,11 +10,9 @@
  */
 #include <arch/x86/init.h>
 #include <arch/x86/cpu.h>
-#include <arch/x86/msr.h>
 #include <arch/x86/acpi/acpi.h>
 
 #include <infos/define.h>
-#include <arch/x86/cpuid.h>
 #include <infos/drivers/timer/lapic-timer.h>
 
 using namespace infos::kernel;
@@ -56,7 +54,6 @@ bool infos::arch::x86::cpu_init()
         for (Core* core : cores) {
             if (core->get_state() == Core::core_state::OFFLINE) {
                 // Start the core!
-//                cpu_log.messagef(LogLevel::DEBUG, "starting core %u", core->get_lapic_id());
                 start_core(core, lapic, pit);
             }
         }
@@ -105,18 +102,15 @@ void infos::arch::x86::start_core(Core* core, LAPIC* lapic, PIT* pit) {
     *ready_flag = 0;
 
     // send init and wait 10ms
-//    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "sending init to core %u", processor_id);
     lapic->send_remote_init(processor_id, 0);
     pit->spin(10000000);
 
     // send sipi and wait 1ms
-//    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "sending sipi to core %u", processor_id);
     lapic->send_remote_sipi(processor_id, 0);
     pit->spin(1000000);
 
     if (!*ready_flag) {
         // send second sipi and wait 1s
-//        cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "resending sipi to core %u", processor_id);
         lapic->send_remote_sipi(processor_id,0);
         pit->spin(1000000000);
     }
@@ -125,20 +119,9 @@ void infos::arch::x86::start_core(Core* core, LAPIC* lapic, PIT* pit) {
         core->set_state(Core::core_state::ERROR);
         cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "core %u error, skipping", processor_id);
         return;
-    } else {
-        core->set_state(Core::core_state::ONLINE);
-        *ready_flag = 2;
-//        cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "core %u ready", processor_id);
     }
 
-//    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "waiting for core %u to be ready", processor_id);
-
-    // wait for core to finish setup before moving on
-//    while(!core->is_initialised()) {
-//        asm volatile ("nop");
-//    }
-
-//    cpu_log.messagef(infos::kernel::LogLevel::DEBUG, "core %u ready, moving on", processor_id);
+    core->set_state(Core::core_state::ONLINE);
 }
 
 /**

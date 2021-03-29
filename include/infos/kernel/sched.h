@@ -37,7 +37,7 @@ namespace infos
 		class SchedulingManager : public Subsystem {
 		public:
 		    SchedulingManager(Kernel& owner);
-            void set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state);
+            void set_entity_state(SchedulingEntity& entity, SchedulingEntityState state);
             Scheduler *next_sched_rr();
             Scheduler *next_sched_load_bal();
             Scheduler *next_sched_rand();
@@ -70,7 +70,7 @@ namespace infos
 
 			void schedule();
 
-			void set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state);
+			void set_entity_state(SchedulingEntity& entity, SchedulingEntityState state);
             void set_current_thread(Thread& thread);
 
 			SchedulingEntity& current_entity() const { return *_current; }

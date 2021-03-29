@@ -182,11 +182,6 @@ __mpstart64:
     sub $_MPSTARTUP_START, %eax
     movb $1, (%rax)
 
-    // Now wait for mpready to be 2
-1:
-    cmpb $2, (%rax)
-    jne 1b
-
     jmp x86_core_start
 .size __mpstart64,.-__mpstart64
 

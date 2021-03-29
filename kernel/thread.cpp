@@ -138,8 +138,8 @@ void Thread::wake_up()
  */
 bool Thread::activate(SchedulingEntity *prev)
 {
-	// This thread can only be activated if it is runnable.
-	assert(state() == SchedulingEntityState::RUNNABLE);
+	// This thread can only be activated if it is runnable or idle.
+	assert(state() == SchedulingEntityState::RUNNABLE || state() == SchedulingEntityState::IDLE);
 
 	// If the previous thread was actually us, then there's nothing to do.
 	if (prev == this)

@@ -57,21 +57,6 @@ int SchedulingManager::rdrand16_step(uint16_t *rand)
 	return (int)ok;
 }
 
-unsigned int prng()
-{
-	// our initial starting seed is 5323
-	static unsigned int nSeed = 5323;
-
-	// Take the current seed and generate a new value from it
-	// Due to our use of large constants and overflow, it would be
-	// very hard for someone to predict what the next number is
-	// going to be from the previous one.
-	nSeed = (8253729 * nSeed + 2396403);
-
-	// Take the seed and return a value between 0 and 32767
-	return nSeed % 32767;
-}
-
 Scheduler *SchedulingManager::next_sched_rand()
 {
 	UniqueLock<util::Mutex> l(_mtx);
@@ -104,9 +89,8 @@ Scheduler *SchedulingManager::next_sched_load_bal()
 }
 
 Scheduler *SchedulingManager::next_sched_proc_affin(SchedulingEntity &entity) {
-    if (entity.proc_affinity()) {
-        return entity.affined_scheduler();
-    } else return next_sched_load_bal();
+    Scheduler *cur = entity.current_scheduler();
+    return cur == nullptr ? next_sched_load_bal() : cur;
 }
 
 void SchedulingManager::add_scheduler(Scheduler &scheduler)
@@ -121,28 +105,28 @@ Scheduler *SchedulingManager::get_scheduler()
 	return schedulers_.dequeue();
 }
 
-void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState::SchedulingEntityState state) {
+void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState state) {
     Scheduler *sched;
 
     // Something went really wrong if we've no schedulers to run on
     if (schedulers_.count() == 0) arch_abort();
-    // Single core!
-    if (schedulers_.count() == 1) sched = schedulers_.first();
 
-    if (entity.get_type() == SchedulingEntityType::IDLE) {
+    if (entity.state() == SchedulingEntityState::IDLE) {
         // This is really important. The idle entity must be given to the scheduler
         // of the core that created it because the core forcibly activates it either way
         sched = &infos::drivers::irq::Core::get_current_core()->get_scheduler();
-    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
-        sched = next_sched_load_bal();
-    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
-        sched = next_sched_proc_affin(entity);
-    } else {
-        // Default is random
-        sched = next_sched_rand();
     }
+//    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
+//        sched = next_sched_load_bal();
+//    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
+//        sched = next_sched_proc_affin(entity);
+//    } else {
+//        // Default is random
+//        sched = next_sched_rand();
+//    }
+else sched = schedulers_.first();
 
-    entity.set_affinity(*sched);
+    entity.current_scheduler(sched);
     sched->set_entity_state(entity, state);
 }
 
@@ -167,7 +151,8 @@ bool Scheduler::init()
 	Process *idle_process = new Process("idle", true, (Thread::thread_proc_t)idle_task);
 
     _idle_entity = &idle_process->main_thread();
-	_idle_entity->set_type(SchedulingEntityType::IDLE);
+    _idle_entity->current_scheduler(this);
+    _idle_entity->_state = SchedulingEntityState::IDLE;
 
 	SchedulingAlgorithm *algo = acquire_scheduler_algorithm();
 	if (!algo)
@@ -184,7 +169,7 @@ bool Scheduler::init()
 	// Start the idle process thread, and forcibly activate it.  This is so that
 	// when interrupts are enabled, the idle thread becomes the context that is
 	// saved and restored.
-	idle_process->start();
+//	idle_process->start();
 	idle_process->main_thread().activate(NULL);
 
 	// But also remove the idle thread from the algorithms run queue, as the
@@ -196,6 +181,7 @@ bool Scheduler::init()
 
 void Scheduler::run()
 {
+
 	// This is now the point of no return.  Once the scheduler is activated, it will schedule the first
 	// eligible process.  Which may or may not be the idle task.  But, non-scheduled control-flow will cease
 	// to be, and the kernel will only run processes.
@@ -293,7 +279,7 @@ void Scheduler::update_accounting()
  * @param entity The scheduling entity being changed.
  * @param state The new state for the entity.
  */
-void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state)
+void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState state)
 {
 	assert(_algorithm);
 
@@ -303,7 +289,7 @@ void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState
 	// If the new state is runnable...
 	if (state == SchedulingEntityState::RUNNABLE) {
 		// Add the entity to the runqueue only if it is transitioning from STOPPED or SLEEPING
-		if (entity._state == SchedulingEntityState::STOPPED || entity._state == SchedulingEntityState::SLEEPING) {
+        if (entity._state == SchedulingEntityState::CREATED || entity._state == SchedulingEntityState::STOPPED || entity._state == SchedulingEntityState::SLEEPING) {
 			_algorithm->add_to_runqueue(entity);
 		}
 	} else if (state == SchedulingEntityState::STOPPED || state == SchedulingEntityState::SLEEPING) {
