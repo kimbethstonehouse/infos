@@ -62,14 +62,31 @@ _vfs(*this)
 
 }
 
+
+static uint64_t get_xcr0()
+{
+    uint32_t a, d, c = 0;
+    asm volatile("xgetbv"
+    : "=a"(a), "=d"(d)
+    : "c"(c));
+
+    return (uint64_t)a | ((uint64_t)d << 32);
+}
+
+static void set_xcr0(uint64_t val)
+{
+    uint32_t a = (val & 0xffffffff), d = ((val >> 32) & 0xffffffff), c = 0;
+    asm volatile("xsetbv" ::"a"(a), "d"(d), "c"(c));
+}
+
 void Kernel::start(BottomFn bottom)
 {
 	syslog.message(LogLevel::INFO, "OK!  Starting the kernel...");
 	
 	initialise_tod();
-	
+
 	_kernel_process = new Process("kernel", true, (Thread::thread_proc_t) &start_kernel_threadproc_tramp);
-	
+
 	_kernel_process->main_thread().add_entry_argument((void *) this);
 	_kernel_process->main_thread().add_entry_argument((void *)bottom);
 	_kernel_process->start();

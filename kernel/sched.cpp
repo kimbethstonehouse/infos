@@ -2,10 +2,10 @@
 
 /*
  * kernel/sched.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/kernel/sched.h>
@@ -25,9 +25,14 @@ using namespace infos::arch::x86;
 ComponentLog infos::kernel::sched_log(syslog, "sched");
 
 static char sched_algorithm[32];
+static char core_algorithm[32];
 
 RegisterCmdLineArgument(SchedAlgorithm, "sched.algorithm") {
 	strncpy(sched_algorithm, value, sizeof(sched_algorithm)-1);
+}
+
+RegisterCmdLineArgument(CoreAlg, "core.algorithm") {
+    strncpy(core_algorithm, value, sizeof(core_algorithm)-1);
 }
 
 RegisterCmdLineArgument(SchedDebug, "sched.debug") {
@@ -40,39 +45,91 @@ RegisterCmdLineArgument(SchedDebug, "sched.debug") {
 
 SchedulingManager::SchedulingManager(Kernel &owner) : Subsystem(owner)
 {
-
 }
 
-Scheduler *SchedulingManager::pick_next_scheduler() {
-    // Lock while accessing the scheduler queue!
-    UniqueLock<util::Mutex> l(_mtx);
+int SchedulingManager::rdrand16_step(uint16_t *rand)
+{
+	unsigned char ok;
+
+	asm volatile("rdrand %0; setc %1"
+				 : "=r"(*rand), "=qm"(ok));
+
+	return (int)ok;
+}
+
+Scheduler *SchedulingManager::next_sched_rand()
+{
+	UniqueLock<util::Mutex> l(_mtx);
+
+	// Choose a random scheduler
+	uint16_t random_idx;
+	rdrand16_step(&random_idx);
+	random_idx = random_idx % (schedulers_.count());
+	//    syslog.messagef(LogLevel::IMPORTANT2, "Scheduler %u chosen from %u", random_idx, schedulers_.count());
+	return schedulers_.at(random_idx);
+}
+
+Scheduler *SchedulingManager::next_sched_load_bal()
+{
+	// Multicore, so choose the scheduler with the smallest runqueue!
+	int min = schedulers_.first()->algorithm().load();
+
+	Scheduler *next = schedulers_.first();
+
+	for (Scheduler *sched : schedulers_)
+	{
+		if (sched->algorithm().load() < min)
+		{
+			min = sched->algorithm().load();
+			next = sched;
+		}
+	}
+
+	return next;
+}
+
+Scheduler *SchedulingManager::next_sched_proc_affin(SchedulingEntity &entity) {
+    Scheduler *cur = entity.current_scheduler();
+    return cur == nullptr ? next_sched_load_bal() : cur;
+}
+
+void SchedulingManager::add_scheduler(Scheduler &scheduler)
+{
+	UniqueLock<util::Mutex> l(_mtx);
+	schedulers_.enqueue(&scheduler);
+}
+
+Scheduler *SchedulingManager::get_scheduler()
+{
+	UniqueLock<util::Mutex> l(_mtx);
+	return schedulers_.dequeue();
+}
+
+void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState state) {
+    Scheduler *sched;
 
     // Something went really wrong if we've no schedulers to run on
     if (schedulers_.count() == 0) arch_abort();
-    // Single core!
-    if (schedulers_.count() == 1) return schedulers_.first();
 
-    // Multicore, so choose the next scheduler round robin style!
-    Scheduler *next = schedulers_.dequeue();
-    sys.sched_manager().add_scheduler(*next);
-    return next;
-}
-
-
-void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEntityState::SchedulingEntityState state) {
-    Scheduler *sched;
-    if (entity.get_type() == SchedulingEntityType::IDLE) {
+    if (entity.state() == SchedulingEntityState::IDLE) {
         // This is really important. The idle entity must be given to the scheduler
         // of the core that created it because the core forcibly activates it either way
         sched = &infos::drivers::irq::Core::get_current_core()->get_scheduler();
-    } else sched = pick_next_scheduler();
+    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_load_bal();
+    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_proc_affin(entity);
+    } else {
+        // Default is random
+        sched = next_sched_rand();
+    }
 
-   sched->set_entity_state(entity, state);
+    entity.current_scheduler(sched);
+    sched->set_entity_state(entity, state);
 }
 
-Scheduler::Scheduler(Kernel& owner) : Subsystem(owner), _active(false), _current(NULL)
+Scheduler::Scheduler(Kernel &owner) : Subsystem(owner), _active(false), _current(NULL)
 {
-
 }
 
 /**
@@ -80,36 +137,39 @@ Scheduler::Scheduler(Kernel& owner) : Subsystem(owner), _active(false), _current
  */
 static void idle_task()
 {
-	for (;;) asm volatile("pause");
+	for (;;)
+		asm volatile("pause");
 }
 
 bool Scheduler::init()
 {
-    sys.sched_manager().add_scheduler(*this);
+	sys.sched_manager().add_scheduler(*this);
 
 	sched_log.message(LogLevel::INFO, "Creating idle process");
 	Process *idle_process = new Process("idle", true, (Thread::thread_proc_t)idle_task);
 
     _idle_entity = &idle_process->main_thread();
-	_idle_entity->set_type(SchedulingEntityType::IDLE);
+    _idle_entity->current_scheduler(this);
+    _idle_entity->_state = SchedulingEntityState::IDLE;
 
 	SchedulingAlgorithm *algo = acquire_scheduler_algorithm();
-	if (!algo) {
+	if (!algo)
+	{
 		syslog.messagef(LogLevel::ERROR, "No scheduling algorithm available");
 		return false;
 	}
-	
+
 	syslog.messagef(LogLevel::IMPORTANT, "*** USING SCHEDULER ALGORITHM: %s", algo->name());
 
 	// Install the discovered algorithm.
 	_algorithm = algo;
 
-    // Start the idle process thread, and forcibly activate it.  This is so that
+	// Start the idle process thread, and forcibly activate it.  This is so that
 	// when interrupts are enabled, the idle thread becomes the context that is
 	// saved and restored.
-	idle_process->start();
+//	idle_process->start();
 	idle_process->main_thread().activate(NULL);
-	
+
 	// But also remove the idle thread from the algorithms run queue, as the
 	// scheduler shouldn't be scheduling this as a regular task.
 	algo->remove_from_runqueue(idle_process->main_thread());
@@ -119,12 +179,13 @@ bool Scheduler::init()
 
 void Scheduler::run()
 {
+
 	// This is now the point of no return.  Once the scheduler is activated, it will schedule the first
 	// eligible process.  Which may or may not be the idle task.  But, non-scheduled control-flow will cease
 	// to be, and the kernel will only run processes.
 	sched_log.message(LogLevel::INFO, "Activating scheduler...");
 	_active = true;
-	
+
 	// Enable interrupts
 	syslog.messagef(LogLevel::DEBUG, "Enabling interrupts");
 	owner().arch().enable_interrupts();
@@ -146,27 +207,34 @@ void Scheduler::run()
  */
 void Scheduler::schedule()
 {
-	if (!_active) return;
-	if (!_algorithm) return;
-	
+	if (!_active)
+		return;
+	if (!_algorithm)
+		return;
+
 	// Ask the scheduling algorithm for the next process.
 	SchedulingEntity *next = _algorithm->pick_next_entity();
-	
+
 	// If the algorithm refused to return a process, then schedule
 	// the idle entity.
 	if (!next) {
 		next = _idle_entity;
 	}
-	
+
 	// If the next task to run, is NOT the currently running task...
-	if (next != _current) {
+	if (next != _current)
+	{
 		// Activate the next task.
-		if (next->activate(_current)) {
+		if (next->activate(_current))
+		{
 			// Update the current task pointer.
 			_current = next;
-		} else {
+		}
+		else
+		{
 			// If the task failed to activate, try and forcibly activate the idle entity.
-			if (!_idle_entity->activate(_current)) {
+			if (!_idle_entity->activate(_current))
+			{
 				// We're in big trouble if even the idle thread won't activate.
 				arch_abort();
 			}
@@ -175,13 +243,13 @@ void Scheduler::schedule()
 			_current = _idle_entity;
 		}
 	}
-	
+
 	// Update the execution start time for the task that's about to run.
 	_current->update_exec_start_time(owner().runtime());
-	
+
 	// Debugging output for the scheduler.
-    uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
-	sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s) on core %u", _current, ((Thread *)_current)->owner().name().c_str(), apic_id);
+	uint8_t apic_id = (*(uint32_t *)(pa_to_vpa((__rdmsr(MSR_APIC_BASE) & ~0xfff) + 0x20))) >> 24;
+	sched_log.messagef(LogLevel::DEBUG, "Scheduled %p (%s/%s) on core %u", _current, ((Thread *)_current)->owner().name().c_str(), ((Thread *)_current)->name().c_str(), apic_id);
 }
 
 /**
@@ -189,15 +257,16 @@ void Scheduler::schedule()
  */
 void Scheduler::update_accounting()
 {
-	if (_current) {
+	if (_current)
+	{
 		auto now = owner().runtime();
 
 		// Calculate the delta.
 		SchedulingEntity::EntityRuntime delta = now - _current->_exec_start_time;
-		
+
 		// Increment the CPU runtime.
 		_current->increment_cpu_runtime(delta);
-		
+
 		// Update the exec start time.
 		_current->update_exec_start_time(now);
 	}
@@ -208,7 +277,7 @@ void Scheduler::update_accounting()
  * @param entity The scheduling entity being changed.
  * @param state The new state for the entity.
  */
-void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState::SchedulingEntityState state)
+void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState state)
 {
 	assert(_algorithm);
 
@@ -218,7 +287,7 @@ void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState
 	// If the new state is runnable...
 	if (state == SchedulingEntityState::RUNNABLE) {
 		// Add the entity to the runqueue only if it is transitioning from STOPPED or SLEEPING
-		if (entity._state == SchedulingEntityState::STOPPED || entity._state == SchedulingEntityState::SLEEPING) {
+        if (entity._state == SchedulingEntityState::CREATED || entity._state == SchedulingEntityState::STOPPED || entity._state == SchedulingEntityState::SLEEPING) {
 			_algorithm->add_to_runqueue(entity);
 		}
 	} else if (state == SchedulingEntityState::STOPPED || state == SchedulingEntityState::SLEEPING) {
@@ -230,7 +299,7 @@ void Scheduler::set_entity_state(SchedulingEntity& entity, SchedulingEntityState
 		// The entity can only transition into RUNNING if it is currently RUNNABLE
 		assert(entity._state == SchedulingEntityState::RUNNABLE);
 	}
-	
+
 	// Record the new state in the entity.
 	entity._state = state;
 	entity._state_changed.trigger();
@@ -242,29 +311,29 @@ extern char _SCHED_ALG_PTR_START, _SCHED_ALG_PTR_END;
 
 SchedulingAlgorithm *Scheduler::acquire_scheduler_algorithm()
 {
-    if (strlen(sched_algorithm) == 0)
-    {
-        sched_log.messagef(LogLevel::ERROR, "Scheduling allocation algorithm not chosen on command-line");
-        return NULL;
-    }
+	if (strlen(sched_algorithm) == 0)
+	{
+		sched_log.messagef(LogLevel::ERROR, "Scheduling allocation algorithm not chosen on command-line");
+		return NULL;
+	}
 
-    SchedulingAlgorithmFactory *schedulers = (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_START;
+	SchedulingAlgorithmFactory *schedulers = (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_START;
 
-    sched_log.messagef(LogLevel::DEBUG, "Searching for '%s' algorithm...", sched_algorithm);
-    while (schedulers < (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_END)
-    {
-        SchedulingAlgorithm *candidate = (*schedulers)();
+	sched_log.messagef(LogLevel::DEBUG, "Searching for '%s' algorithm...", sched_algorithm);
+	while (schedulers < (SchedulingAlgorithmFactory *)&_SCHED_ALG_PTR_END)
+	{
+		SchedulingAlgorithm *candidate = (*schedulers)();
 
-        sched_log.messagef(LogLevel::DEBUG, "Found '%s' algorithm...", candidate->name());
-        if (strncmp(candidate->name(), sched_algorithm, sizeof(sched_algorithm) - 1) == 0)
-        {
-            return candidate;
-        }
+		sched_log.messagef(LogLevel::DEBUG, "Found '%s' algorithm...", candidate->name());
+		if (strncmp(candidate->name(), sched_algorithm, sizeof(sched_algorithm) - 1) == 0)
+		{
+			return candidate;
+		}
 
-        delete candidate;
+		delete candidate;
 
-        schedulers++;
-    }
+		schedulers++;
+	}
 
-    return nullptr;
+	return nullptr;
 }

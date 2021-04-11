@@ -31,6 +31,8 @@ namespace infos {
 
 			static unsigned int sys_read(ObjectHandle h, uintptr_t buffer, size_t size);
 			static unsigned int sys_write(ObjectHandle h, uintptr_t buffer, size_t size);
+			static unsigned int sys_pread(ObjectHandle h, uintptr_t buffer, size_t size, off_t off);
+			static unsigned int sys_pwrite(ObjectHandle h, uintptr_t buffer, size_t size, off_t off);
 
 			static ObjectHandle sys_opendir(uintptr_t path, uint32_t flags);
 			static unsigned int sys_readdir(ObjectHandle h, uintptr_t buffer);
@@ -46,6 +48,8 @@ namespace infos {
 			static unsigned int sys_join_thread(ObjectHandle h);
 			static unsigned long sys_usleep(unsigned long us);
 			static unsigned int sys_get_tod(uintptr_t tpstruct);
+			static void sys_set_thread_name(ObjectHandle thr, uintptr_t name);
+			static unsigned long sys_get_ticks();
 
 			static void RegisterDefaultSyscalls(SyscallManager& mgr);
 		};

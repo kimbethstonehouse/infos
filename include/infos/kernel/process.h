@@ -37,8 +37,8 @@ namespace infos
 			mm::VMA& vma() { return _vma; }
 			Thread& main_thread() const { return *_main_thread; }
 			
-			Thread& create_thread(ThreadPrivilege::ThreadPrivilege privilege, Thread::thread_proc_t entry_point);
-
+			Thread& create_thread(ThreadPrivilege::ThreadPrivilege privilege, Thread::thread_proc_t entry_point, const util::String& name);
+			
 			util::Event& state_changed() { return _state_changed; }
 			
 		private:

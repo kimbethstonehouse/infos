@@ -16,6 +16,7 @@
 #include <infos/fs/file.h>
 #include <infos/fs/directory.h>
 #include <infos/util/string.h>
+#include <infos/util/time.h>
 #include <arch/arch.h>
 
 using namespace infos::kernel;
@@ -73,6 +74,11 @@ void DefaultSyscalls::RegisterDefaultSyscalls(SyscallManager& mgr)
 
 	mgr.RegisterSyscall(15, (SyscallManager::syscallfn) DefaultSyscalls::sys_usleep);
 	mgr.RegisterSyscall(16, (SyscallManager::syscallfn) DefaultSyscalls::sys_get_tod);
+	mgr.RegisterSyscall(17, (SyscallManager::syscallfn) DefaultSyscalls::sys_set_thread_name);
+	mgr.RegisterSyscall(18, (SyscallManager::syscallfn) DefaultSyscalls::sys_get_ticks);
+
+	mgr.RegisterSyscall(19, (SyscallManager::syscallfn) DefaultSyscalls::sys_pread);
+	mgr.RegisterSyscall(20, (SyscallManager::syscallfn) DefaultSyscalls::sys_pwrite);
 }
 
 void DefaultSyscalls::sys_nop()
@@ -128,6 +134,28 @@ unsigned int DefaultSyscalls::sys_write(ObjectHandle h, uintptr_t buffer, size_t
 
 	// TODO: Validate 'buffer' etc...
 	return f->write((const void *) buffer, size);
+}
+
+unsigned int DefaultSyscalls::sys_pread(ObjectHandle h, uintptr_t buffer, size_t size, off_t off)
+{
+	File *f = (File *) sys.object_manager().get_object_secure(Thread::current(), h);
+	if (!f) {
+		return -1;
+	}
+
+	// TODO: Validate 'buffer' etc...
+	return f->pread((void *) buffer, size, off);
+}
+
+unsigned int DefaultSyscalls::sys_pwrite(ObjectHandle h, uintptr_t buffer, size_t size, off_t off)
+{
+	File *f = (File *) sys.object_manager().get_object_secure(Thread::current(), h);
+	if (!f) {
+		return -1;
+	}
+
+	// TODO: Validate 'buffer' etc...
+	return f->pwrite((const void *) buffer, size, off);
 }
 
 ObjectHandle DefaultSyscalls::sys_opendir(uintptr_t path, uint32_t flags)
@@ -209,7 +237,7 @@ unsigned int DefaultSyscalls::sys_wait_proc(ObjectHandle h)
 
 ObjectHandle DefaultSyscalls::sys_create_thread(uintptr_t entry_point, uintptr_t arg)
 {
-	Thread& t = Thread::current().owner().create_thread(ThreadPrivilege::User, (Thread::thread_proc_t)entry_point);
+	Thread& t = Thread::current().owner().create_thread(ThreadPrivilege::User, (Thread::thread_proc_t)entry_point, "other");
 	ObjectHandle h = sys.object_manager().register_object(Thread::current(), &t);
 
 	virt_addr_t stack_addr = 0x7fff00000000;
@@ -280,4 +308,21 @@ unsigned int DefaultSyscalls::sys_get_tod(uintptr_t tpstruct)
 	userspace_tod->year = tod.year;
 
 	return 0;
+}
+
+void DefaultSyscalls::sys_set_thread_name(ObjectHandle h, uintptr_t name)
+{
+	Thread *t;
+	if (h == (ObjectHandle) - 1) {
+		t = &Thread::current();
+	} else {
+		t = (Thread *) sys.object_manager().get_object_secure(Thread::current(), h);
+	}
+
+	t->name((const char *)name);
+}
+
+unsigned long DefaultSyscalls::sys_get_ticks()
+{
+	return sys.runtime().time_since_epoch().count();
 }

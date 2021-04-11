@@ -2,10 +2,10 @@
 
 /*
  * mm/page-allocator.cpp
- * 
+ *
  * InfOS
  * Copyright (C) University of Edinburgh 2016.  All Rights Reserved.
- * 
+ *
  * Tom Spink <tspink@inf.ed.ac.uk>
  */
 #include <infos/mm/page-allocator.h>
@@ -53,22 +53,22 @@ bool PageAllocator::setup_page_descriptors()
 
 	// Calculate the total size of the page descriptor array.
 	uint64_t pd_size = _nr_pages * sizeof(PageDescriptor);
-	
+
 	// Use the start of the heap area as the basis for the page descriptor array.
 	_page_descriptors = (PageDescriptor *)&_HEAP_START;
 	mm_log.messagef(LogLevel::DEBUG, "Allocating %lu page descriptors (%lu kB)", _nr_pages, KB(pd_size));
-	
+
 	// Make sure the page descriptors will fit in this region of memory
 	const PhysicalMemoryBlock *pmb = owner().lookup_phys_block(kva_to_pa((virt_addr_t)_page_descriptors));
 	if (!pmb) {
 		return false;
 	}
-	
+
 	// TODO: Actually check this assertion holds, using the size of the physical memory block.
-	
+
 	// Initialise the page descriptors, by zeroing them all.
 	bzero(_page_descriptors, _nr_pages * sizeof(PageDescriptor));
-	
+
 	return true;
 }
 
@@ -80,19 +80,19 @@ bool PageAllocator::init()
 		mm_log.message(LogLevel::ERROR, "Page allocator algorithm not registered");
 		return false;
 	}
-	
+
 	// Prepare the page descriptor array
 	if (!setup_page_descriptors()) {
 		return false;
 	}
-		
+
 	uint64_t nr_present_pages, nr_free_pages;
-		
+
 	// Loop through available physical memory blocks, and update the corresponding page descriptors.
 	nr_present_pages = 0;
 	for (unsigned int i = 0; i < owner()._nr_phys_mem_blocks; i++) {
 		const PhysicalMemoryBlock& pmb = owner()._phys_mem_blocks[i];
-		
+
 		if (pmb.type == MemoryType::NORMAL) {
 			nr_present_pages += pmb.nr_pages;
 			for (pfn_t pfn = pmb.base_pfn; pfn < (pmb.base_pfn + pmb.nr_pages); pfn++) {
@@ -100,7 +100,7 @@ bool PageAllocator::init()
 			}
 		}
 	}
-	
+
 	nr_free_pages = nr_present_pages;
 
 	// Reserve page zero.  We can do without it.
@@ -114,36 +114,36 @@ bool PageAllocator::init()
 	// Reserve the range of pages corresponding to the kernel image
 	pfn_t image_start_pfn = pa_to_pfn((phys_addr_t)&_IMAGE_START);	// _IMAGE_START is a PA
 	pfn_t image_last_pfn = pa_to_pfn((phys_addr_t)&_IMAGE_END);		// _IMAGE_END is a PA
-	
+
 	nr_free_pages -= mark_page_range(PageDescriptorType::RESERVED, image_start_pfn, image_last_pfn - image_start_pfn + 1);
-	
+
 	// Reserve the range of pages corresponding to the kernel stack
 	pfn_t stack_start_pfn = pa_to_pfn(kva_to_pa((virt_addr_t)&_STACK_START));	// _STACK_START is a VA
 	pfn_t stack_last_pfn = pa_to_pfn(kva_to_pa((virt_addr_t)&_STACK_END));		// _STACK_END is a VA
 	nr_free_pages -= mark_page_range(PageDescriptorType::RESERVED, stack_start_pfn, stack_last_pfn - stack_start_pfn + 1);
-	
+
 	// Reserve the range of pages corresponding to the kernel heap, which is
 	// actually just the page descriptors.
-	pfn_t heap_start_pfn = pa_to_pfn(kva_to_pa((virt_addr_t)&_HEAP_START));	// _HEAP_START is a VA	
+	pfn_t heap_start_pfn = pa_to_pfn(kva_to_pa((virt_addr_t)&_HEAP_START));	// _HEAP_START is a VA
 	nr_free_pages -= mark_page_range(PageDescriptorType::RESERVED, heap_start_pfn, ((_nr_pages * sizeof(PageDescriptor)) >> 12) + 1);
-	
+
 	mm_log.messagef(LogLevel::INFO, "Page Allocator: total=%lu, present=%lu, free=%lu (%u MB)", _nr_pages, nr_present_pages, nr_free_pages, MB(nr_free_pages << 12));
-	
+
 	// Now, initialise the page allocation algorithm.
-	
+
 	mm_log.messagef(LogLevel::INFO, "Initialising allocator algorithm '%s'", _allocator_algorithm->name());
 	if (!_allocator_algorithm->init(_page_descriptors, _nr_pages)) {
 		mm_log.message(LogLevel::ERROR, "Allocator failed to initialise");
 		return false;
 	}
-	
+
 	if (do_self_test) {
 		if (!self_test()) {
 			mm_log.message(LogLevel::FATAL, "Allocator self-test failed!");
 			arch_abort();
 		}
 	}
-	
+
 	// Tell the algorithm about reserved pages, by looping over each page and reserving it
 	// if it is not "available".
 	for (PageDescriptor *pgd = _page_descriptors; pgd < &_page_descriptors[_nr_pages]; pgd++) {
@@ -154,7 +154,7 @@ bool PageAllocator::init()
 			}
 		}
 	}
-	
+
 	return true;
 }
 
@@ -163,7 +163,7 @@ unsigned int PageAllocator::mark_page_range(PageDescriptorType::PageDescriptorTy
 	for (pfn_t pfn = start; pfn < start + nr_pages; pfn++) {
 		_page_descriptors[pfn].type = type;
 	}
-	
+
 	return nr_pages;
 }
 
@@ -178,17 +178,17 @@ PageDescriptor *PageAllocator::alloc_pages(int order)
 	// Call into the algorithm to actually allocate the pages.
 	if (!_allocator_algorithm)
 		return NULL;
-	
-	UniqueLock<Spinlock> l(_spnlck);
+
+	UniqueLock<SpinLock> l(_spnlck);
 	PageDescriptor *pgd = _allocator_algorithm->alloc_pages(order);
-	
+
 	// Double check that all the pages are marked as available, and
 	// mark them as allocated.
 	for (unsigned int i = 0; i < (1u << order); i++) {
 		assert(pgd[i].type == PageDescriptorType::AVAILABLE);
 		pgd[i].type = PageDescriptorType::ALLOCATED;
 	}
-	
+
 	pgalloc_log.messagef(LogLevel::DEBUG, "alloc: order=%d, pgd=%p (%lx)", order, pgd, pgd_to_pa(pgd));
 	return pgd;
 }
@@ -202,7 +202,7 @@ void PageAllocator::free_pages(PageDescriptor* pgd, int order)
 {
 	// Call into the algorithm to actually free the pages.
 	if (_allocator_algorithm) {
-		UniqueLock<Spinlock> l(_spnlck);
+		UniqueLock<SpinLock> l(_spnlck);
 		_allocator_algorithm->free_pages(pgd, order);
 
 		// Double-check that all the pages were allocated, and mark them as available.
@@ -219,23 +219,23 @@ const PageDescriptor* PageAllocator::alloc_zero_page()
 {
 	const PageDescriptor *pgd = alloc_page();
 	if (!pgd) return NULL;
-	
+
 	void *ptr = (void *)pgd_to_vpa(pgd);
 	pzero(ptr);
-	
+
 	return pgd;
 }
 
 bool PageAllocator::self_test()
 {
 	assert(_allocator_algorithm);
-	
+
 	mm_log.messagef(LogLevel::IMPORTANT, "PAGE ALLOCATOR SELF TEST - BEGIN");
 	mm_log.messagef(LogLevel::IMPORTANT, "------------------------");
-	
+
 	mm_log.messagef(LogLevel::INFO, "* INITIAL STATE");
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(1) ALLOCATING ONE PAGE");
 	auto p = _allocator_algorithm->alloc_pages(0);
@@ -243,38 +243,38 @@ bool PageAllocator::self_test()
 		mm_log.messagef(LogLevel::ERROR, "Allocator did not allocate page");
 		return false;
 	}
-	
+
 	mm_log.messagef(LogLevel::INFO, "ALLOCATED PFN: %p", pgd_to_pfn(p));
 	_allocator_algorithm->dump_state();
 
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(2) FREEING ONE PAGE");
 	_allocator_algorithm->free_pages(p, 0);
-		
+
 	_allocator_algorithm->dump_state();
 
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(3) ALLOCATING TWO CONTIGUOUS PAGES");
 	p = _allocator_algorithm->alloc_pages(1);
 	mm_log.messagef(LogLevel::INFO, "ALLOCATED PFN: %p", pgd_to_pfn(p));
-	
+
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(4) FREEING TWO CONTIGUOUS PAGES");
 	_allocator_algorithm->free_pages(p, 1);
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(5) OVERLAPPING ALLOCATIONS");
 	auto p0 = _allocator_algorithm->alloc_pages(0);
-	auto p1 = _allocator_algorithm->alloc_pages(1);	
+	auto p1 = _allocator_algorithm->alloc_pages(1);
 	_allocator_algorithm->free_pages(p0, 0);
 	auto p2 = _allocator_algorithm->alloc_pages(0);
 	_allocator_algorithm->free_pages(p1, 1);
 	_allocator_algorithm->free_pages(p2, 0);
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(6) MULTIPLE ALLOCATIONS, RANDOM ORDER FREE");
 	auto p00 = _allocator_algorithm->alloc_pages(0);
@@ -287,7 +287,7 @@ bool PageAllocator::self_test()
 	auto p07 = _allocator_algorithm->alloc_pages(0);
 	mm_log.messagef(LogLevel::INFO, "* AFTER ALLOCATION");
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "  FREE %p", pgd_to_pfn(p05));
 	_allocator_algorithm->free_pages(p05, 0);
 	_allocator_algorithm->dump_state();
@@ -321,7 +321,7 @@ bool PageAllocator::self_test()
 
 	mm_log.messagef(LogLevel::INFO, "* AFTER RANDOM ORDER FREEING");
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(7) RESERVING PAGE 0x14e000 and 0x14f000");
 	bool page_reserved = _allocator_algorithm->reserve_page(pfn_to_pgd(0x14e));
@@ -330,7 +330,7 @@ bool PageAllocator::self_test()
 	assert(page_reserved);
 
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "(8) FREEING RESERVED PAGE 0x14f000");
 	_allocator_algorithm->free_pages(pfn_to_pgd(0x14f), 0);
@@ -340,10 +340,10 @@ bool PageAllocator::self_test()
 	mm_log.messagef(LogLevel::INFO, "(9) FREEING RESERVED PAGE 0x14e000");
 	_allocator_algorithm->free_pages(pfn_to_pgd(0x14e), 0);
 	_allocator_algorithm->dump_state();
-	
+
 	mm_log.messagef(LogLevel::INFO, "------------------------");
 	mm_log.messagef(LogLevel::INFO, "PAGE ALLOCATOR SELF TEST - COMPLETE");
-	
+
 	return true;
 }
 

@@ -59,7 +59,7 @@ namespace infos {
 
 		private:
 			util::Map<util::String::hash_type, drivers::Device *> _devices;
-            util::Mutex _mtx;
+            util::SpinLock spnlck_;
 		};
 	}
 }

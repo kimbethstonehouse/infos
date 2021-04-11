@@ -9,6 +9,11 @@ namespace infos
 {
 	namespace drivers
 	{
+		namespace timer
+		{
+			class LAPICTimer;
+		}
+
 		namespace irq
 		{
 			namespace LAPICRegisters {
@@ -70,6 +75,8 @@ namespace infos
 
 			class LAPIC : public Device
 			{
+				friend class timer::LAPICTimer;
+
 			public:
 				enum LVTs
 				{

@@ -24,6 +24,7 @@ PIT::PIT()
 
 void PIT::start()
 {
+    spnlck_.lock();
 	uint8_t data = __inb(0x61);
 	
 	data &= 0xfe;
@@ -34,12 +35,12 @@ void PIT::start()
 
 void PIT::stop()
 {
-
+    spnlck_.unlock();
 }
 
 void PIT::reset()
 {
-
+    spnlck_.unlock();
 }
 
 uint64_t PIT::count() const

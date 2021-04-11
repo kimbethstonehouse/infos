@@ -95,9 +95,8 @@ bool Core::timer_init() {
         return false;
     }
 
-    // Set the timer to be periodic, with a period of 10ms, and start
-    // the timer.
-    lapic_timer->init_periodic((lapic_timer->frequency() >> 4) / 100);
+    // Set the timer to be periodic, with a period of 4ms, and start the timer.
+    lapic_timer->init_periodic((lapic_timer->frequency() >> 4) / 250);
     lapic_timer->start();
 
     return true;

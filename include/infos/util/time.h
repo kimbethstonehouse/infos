@@ -41,7 +41,7 @@ namespace infos {
 			friend Self operator-(const Self& l, const Self& r) {
 				return Self(r._val - l._val);
 			}
-			
+
 			friend bool operator<(const Self& l, const Self& r) {
 				return l._val < r._val;
 			}
@@ -90,6 +90,10 @@ namespace infos {
 				return l._val._val < r._val._val;
 			}
 
+			friend bool operator>(const Self& l, const Self& r) {
+				return l._val._val > r._val._val;
+			}
+
 			TimepointImpl(Dur dur) : _val(dur) {
 			}
 		};
@@ -125,7 +129,7 @@ namespace infos {
 		struct KernelRuntimeClock {
 			typedef TimepointImpl<> Timepoint;
 		};
-		
+
 		struct TimeOfDay {
 			unsigned short hours, minutes, seconds;
 			unsigned short day, month, year;
@@ -134,4 +138,3 @@ namespace infos {
 }
 
 #endif /* TIME_H */
-
