@@ -115,16 +115,14 @@ void SchedulingManager::set_entity_state(SchedulingEntity &entity, SchedulingEnt
         // This is really important. The idle entity must be given to the scheduler
         // of the core that created it because the core forcibly activates it either way
         sched = &infos::drivers::irq::Core::get_current_core()->get_scheduler();
+    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_load_bal();
+    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
+        sched = next_sched_proc_affin(entity);
+    } else {
+        // Default is random
+        sched = next_sched_rand();
     }
-//    } else if (strncmp(core_algorithm, "load.bal", strlen(core_algorithm)-1) == 0) {
-//        sched = next_sched_load_bal();
-//    } else if (strncmp(core_algorithm, "proc.affin", strlen(core_algorithm)-1) == 0) {
-//        sched = next_sched_proc_affin(entity);
-//    } else {
-//        // Default is random
-//        sched = next_sched_rand();
-//    }
-else sched = schedulers_.first();
 
     entity.current_scheduler(sched);
     sched->set_entity_state(entity, state);
